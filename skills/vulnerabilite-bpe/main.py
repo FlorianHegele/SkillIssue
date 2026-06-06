@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """vulnerabilite-bpe — écoles et établissements de santé d'une commune française.
 
-Aide à protéger/évacuer en crue : localise les équipements sensibles d'une commune (écoles,
-souvent réquisitionnées comme abris et accueillant des publics fragiles ; établissements de
-santé, dont la continuité de soins est vitale). Source = fichier-détail BPE de l'INSEE (Base
+Aide à évacuer/protéger en crue : localise les établissements à gérer spécifiquement d'une commune
+(écoles : concentration de mineurs à évacuer de façon encadrée ; établissements de santé :
+continuité des soins vitale, patients non transportables). La réquisition de bâtiments comme
+centres d'hébergement relève du skill logistique-hebergement. Source = fichier-détail BPE de l'INSEE (Base
 Permanente des Équipements), un gros CSV NATIONAL zippé à télécharger (~165 Mo, ~1,4 Go une fois
 décompressé ; pas une API JSON), qui porte déjà LATITUDE/LONGITUDE WGS84. Voir references/api.md.
 
@@ -225,6 +226,10 @@ def resolve_source(cache_dir, timeout):
 
 
 # --- Choix du/des fichier(s) à interroger -------------------------------------
+# TODO(dette) : le socle registre→cache (resolve_source / select_files / dataset_path) est
+# dupliqué à l'identique avec demographie-iris (qui, lui, exploite vraiment le multi-fichiers et
+# code_prefixes). Le hisser dans skills/_common/ dès le 4e/5e skill qui réutilise ce pattern,
+# pour le mutualiser d'un coup plutôt que de le dupliquer/laisser diverger une 3e fois.
 def select_files(entry, zone_arg, code_insee=None):
     """Liste ordonnée des fichiers à essayer pour cette entrée de registre.
 

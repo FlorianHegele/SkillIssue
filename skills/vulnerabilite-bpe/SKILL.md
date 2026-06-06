@@ -2,12 +2,13 @@
 name: vulnerabilite-bpe
 description: >
   Trigger when user asks where the schools and health facilities of a French location are — to
-  protect, evacuate or requisition them during a flood (schools as shelters, hospitals/clinics
-  whose care must stay running). Mots-clés FR : équipements sensibles, vulnérabilité, écoles,
+  evacuate or protect them during a flood: schools (a concentration of dependent minors to
+  evacuate in an organised way) and hospitals/clinics whose care must keep running
+  (non-transportable patients). Mots-clés FR : équipements sensibles, vulnérabilité, écoles,
   école maternelle, primaire, collège, lycée, établissements de santé, hôpital, urgences,
-  maternité, dialyse, centre de santé, maison de santé, à évacuer, à protéger, centre
-  d'hébergement, BPE, INSEE. EN keywords: schools, hospitals, health facilities, emergency,
-  maternity, dialysis, sensitive facilities, vulnerability, shelter, evacuate, BPE. Donne la liste
+  maternité, dialyse, centre de santé, maison de santé, à évacuer, à protéger, continuité des
+  soins, BPE, INSEE. EN keywords: schools, hospitals, health facilities, emergency, maternity,
+  dialysis, sensitive facilities, vulnerability, evacuate, continuity of care, BPE. Donne la liste
   géolocalisée (écoles / santé) d'une commune (nom ou code INSEE) ou de coordonnées lat/lon en
   France, triée par distance, avec option rayon.
 allowed-tools: Bash(python3 *)
@@ -16,14 +17,20 @@ allowed-tools: Bash(python3 *)
 # vulnerabilite-bpe
 
 Écoles et établissements de **santé** d'une commune française, géolocalisés, à partir du
-**fichier-détail BPE** (Base Permanente des Équipements) de l'INSEE. Sert à protéger / évacuer les
-publics fragiles et à repérer les bâtiments réquisitionnables (les écoles servent souvent de
-centres d'hébergement).
+**fichier-détail BPE** (Base Permanente des Équipements) de l'INSEE. Sert à repérer les
+établissements à **gérer spécifiquement** lors d'une évacuation : la **santé** (continuité des
+soins, patients non transportables — dialyse, maternité, urgences) et les **écoles**
+(concentration de mineurs à évacuer de façon encadrée).
+
+> La réquisition de bâtiments comme **centres d'hébergement** (capacité d'accueil des sinistrés)
+> relève du skill `logistique-hebergement`, pas de celui-ci.
 
 ## Quand l'utiliser
 
 L'utilisateur veut savoir **où sont les écoles et les établissements de santé** d'une commune (ou
 autour d'un point) : combien, de quel type, à quelle distance, pour décider quoi évacuer/protéger.
+Pour la **capacité d'accueil** des sinistrés (hôtels, gymnases, salles réquisitionnables), voir
+`logistique-hebergement`.
 
 ## Comment lancer
 
