@@ -49,4 +49,29 @@ Sans clé, sans inscription. CSV + XLSX. **Préférer le millésime 2022** (corr
 
 ## Sortie attendue (synthèse JSON)
 
-`{ commune: {code, nom, population}, iris: [{code, libelle, population, menages, familles, monoparentales}] }`
+Forme effective (voir `contract.schema.json`, source de vérité) :
+
+```
+{
+  lieu:    {commune, code_insee, lat, lon},
+  dataset: {millesime, geographie, zone, url, urlhash, telecharge_le, sha256,
+            depuis_cache, registre_source, registry_version, maj_skill_disponible, message},
+  demographie: {
+    commune: {code, nom, population, iris_count, menages_total, familles_total,
+              monoparentales_total, part_monoparentales_pct},
+    iris: [{code, libelle, population, menages, familles, monoparentales}]   // trié pop. décroissante
+  }
+}
+```
+
+Notes :
+- Le **nom de commune** (`commune.nom`, `lieu.commune`) vient de geo.api, pas du CSV : les fichiers
+  base-ic 2022 ne contiennent plus `LIBCOM`/`LIBIRIS` (seulement `LAB_IRIS` = code qualité, `TYP_IRIS`).
+  Le `libelle` IRIS est donc une chaîne « indisponible » sur ce millésime.
+- `part_monoparentales_pct` est calculé **uniquement sur les IRIS où familles ET monoparentales
+  sont numériques** (cohérence du ratio en présence de secret statistique) ; `monoparentales_total`,
+  lui, est la somme complète.
+- **`commune.population` pour les COM** (dépts 975/977/978/986/987/988) est souvent
+  « indisponible » : geo.api ne couvre pas/mal la population des collectivités d'outre-mer.
+  Dégradation propre (chaîne explicative), mais champ peu exploitable hors métropole/DOM.
+- Avec `--detail`, chaque IRIS porte en plus `type_iris`, `couples_avec_enfants`, `couples_sans_enfants`.

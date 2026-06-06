@@ -50,7 +50,7 @@ class ContractTest(unittest.TestCase):
         main.resolve_location = lambda c, lat, lon, t: loc
         main.dataset_path = lambda entry, zone, c, r, t: (FIXTURE_CSV, dict(meta))
 
-        def fake_get(url, params=None, timeout=20, retries=3):
+        def fake_get(url, params=None, timeout=20, retries=3, require_json=True):
             if pop_raises:
                 raise SkillError("geo.api en panne", detail="test")
             return [{"population": population}]
@@ -68,9 +68,11 @@ class ContractTest(unittest.TestCase):
         com = out["demographie"]["commune"]
         self.assertEqual(com["iris_count"], 4)               # 4 IRIS d'Alès (pas Montpellier)
         self.assertEqual(com["menages_total"], 2820)         # 820+900+700+400
-        self.assertEqual(com["familles_total"], 1570)        # 540+610+420 (Tamaris vide ignoré)
-        self.assertEqual(com["monoparentales_total"], 350)   # 95+120+80+55
-        self.assertEqual(com["part_monoparentales_pct"], 22.3)
+        self.assertEqual(com["familles_total"], 1570)        # 540+610+420 (Tamaris C22_FAM vide)
+        self.assertEqual(com["monoparentales_total"], 350)   # 95+120+80+55 (total complet)
+        # Ratio calculé seulement sur les IRIS où familles ET monoparentales sont numériques :
+        # Tamaris (fam vide) est exclu du numérateur ET du dénominateur -> 295/1570, pas 350/1570.
+        self.assertEqual(com["part_monoparentales_pct"], 18.8)
         self.assertEqual(com["population"], 40000)
         self.assertEqual(len(out["demographie"]["iris"]), 4)
         # tri par population décroissante

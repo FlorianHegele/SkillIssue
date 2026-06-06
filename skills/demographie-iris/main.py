@@ -165,6 +165,13 @@ def resolve_source(cache_dir, timeout):
 
     entry = max(compatible, key=lambda e: e.get("millesime", 0))
 
+    # Le registre est maintenu à la main : on valide que l'entrée retenue porte bien les deux
+    # URLs avant de s'en servir (sinon KeyError en aval, donc trace brute). Erreur contrôlée.
+    if not entry.get("url_metropole") or not entry.get("url_com"):
+        fail("entrée de registre incomplète pour le millésime %s : url_metropole/url_com "
+             "manquant ; corriger dataset-registry.json" % entry.get("millesime"),
+             detail={"entry": entry})
+
     # Existe-t-il un millésime plus récent mais hors de portée de cette version du skill ?
     plus_recents = [e for e in entries
                     if e.get("millesime", 0) > entry.get("millesime", 0)
@@ -341,6 +348,11 @@ def collect_demographie(loc, args, csv_path, entry, zone):
     iris_items = []
     tot_men = tot_fam = tot_mono = 0.0
     has_men = has_fam = has_mono = False
+    # Pour le ratio monoparentales/familles : on n'accumule que les IRIS où LES DEUX valeurs
+    # sont numériques, sinon le pourcentage mélangerait des périmètres d'IRIS différents
+    # (numérateur d'un IRIS, dénominateur d'un autre) — trompeur en cas de secret statistique.
+    pair_fam = pair_mono = 0.0
+    has_pair = False
     for r in rows:
         men = _num(r, prefix + "MEN")
         fam = _num(r, prefix + "FAM")
@@ -357,12 +369,16 @@ def collect_demographie(loc, args, csv_path, entry, zone):
             couples_avec_enfants=_num(r, prefix + "MENCOUPAENF") if args.detail else None,
             couples_sans_enfants=_num(r, prefix + "MENCOUPSENF") if args.detail else None,
         ))
+        fam_num = isinstance(fam, (int, float))
+        mono_num = isinstance(mono, (int, float))
         if isinstance(men, (int, float)):
             tot_men += men; has_men = True
-        if isinstance(fam, (int, float)):
+        if fam_num:
             tot_fam += fam; has_fam = True
-        if isinstance(mono, (int, float)):
+        if mono_num:
             tot_mono += mono; has_mono = True
+        if fam_num and mono_num:
+            pair_fam += fam; pair_mono += mono; has_pair = True
 
     # Tri par population décroissante (les valeurs non numériques en dernier).
     iris_items.sort(
@@ -380,7 +396,7 @@ def collect_demographie(loc, args, csv_path, entry, zone):
                         else "indisponible : aucune valeur familles exploitable"),
         monoparentales_total=(round(tot_mono) if has_mono
                               else "indisponible : aucune valeur monoparentales exploitable"),
-        part_monoparentales_pct=(_pct(tot_mono, tot_fam) if (has_fam and has_mono)
+        part_monoparentales_pct=(_pct(pair_mono, pair_fam) if has_pair
                                  else "indisponible : familles/monoparentales non exploitables"),
     )
 
