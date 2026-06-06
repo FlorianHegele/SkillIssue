@@ -50,7 +50,7 @@ class Pic:
 
 @dataclass
 class Pluie:
-    cumul_prochaines_24h_mm: float
+    cumul_prochaines_24h_mm: Mesure   # nombre, ou chaîne si < 24 h de prévision dispo
     seuil_mm: float
     heures_pluvieuses: List[HeurePluie]
     modele: str = "meteofrance_arome_france_hd"

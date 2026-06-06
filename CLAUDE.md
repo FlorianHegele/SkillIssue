@@ -57,3 +57,5 @@ skills/<skill>/                ← SKILL.md · main.py · contract.py · contrac
 ```
 
 Libs Python : `requests`, `shapely`, `pyproj` (géo) ; `pypdf`/`pdfplumber` (PDF) au besoin.
+
+**Exécution** : utiliser le virtualenv `.venv/` à la racine s'il existe (`.venv/bin/python`), sinon `python3`.

@@ -57,13 +57,22 @@ def collect_vigilance(loc, radius_km, timeout):
             continue
         try:
             g = shape(geom)
+            # nearest_points travaille en degrés (lon/lat plats) : le « plus proche »
+            # est une approximation (le degré de longitude est ~0,72× le degré de latitude
+            # à 44°). Négligeable à courte distance ; la distance affichée, elle, est
+            # recalculée en km par haversine sur le point le plus proche trouvé.
             p_geom, _ = nearest_points(g, point)
         except Exception:
             continue
         dist_km = haversine_km(loc.lat, loc.lon, p_geom.y, p_geom.x)
         if best is None or dist_km < best.distance_km:
             props = feat.get("properties", {})
-            niveau = props.get("NivInfViCr")
+            # NivInfViCr peut arriver en string selon les versions : on coerce en int
+            # (sinon le champ violerait le contrat ["integer","null"]).
+            try:
+                niveau = int(props.get("NivInfViCr"))
+            except (TypeError, ValueError):
+                niveau = None
             best = C.Vigilance(
                 couleur=VIGILANCE_COULEURS.get(niveau, "inconnu"),
                 distance_km=round(dist_km, 2),
@@ -172,7 +181,13 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
             break
         fenetre.append((t, round(p or 0.0, 1)))
 
-    cumul = round(sum(v for _, v in fenetre), 1)
+    # forecast_days=2 garantit normalement >= 24 h futures ; si l'API en renvoie moins,
+    # on ne ment pas sur le nom du champ : cumul devient une chaîne explicative.
+    if len(fenetre) >= 24:
+        cumul = round(sum(v for _, v in fenetre), 1)
+    else:
+        cumul = ("indisponible : prévision limitée à %d h (< 24) renvoyée par l'API"
+                 % len(fenetre))
     pluvieuses = [C.HeurePluie(heure=t, precipitation_mm=v) for t, v in fenetre if v >= seuil]
     pic_raw = max(fenetre, key=lambda x: x[1], default=None)
     pic = (C.Pic(heure=pic_raw[0], precipitation_mm=pic_raw[1])

@@ -70,5 +70,5 @@ Re-vérifier avant de figer le code : ces API évoluent (la v1 Hub'Eau a été c
 
 ## Sortie attendue du skill (synthèse JSON)
 
-Pour une commune/lat-lon (défaut zone démo Alès 30) : `{ vigilance: {couleur, troncon}, hydro: [{station, hauteur_mm, debit_ls, date}], pluie: {cumul_prochaines_24h_mm, par_heure[]} }`.
+Pour une commune/lat-lon (localisation **obligatoire**, aucun repli ; Alès n'est qu'un *exemple* de doc, jamais un défaut applicatif) : `{ lieu, vigilance: {couleur, troncon, …}, hydro: [{station, hauteur_mm, debit_ls, date}], pluie: {cumul_prochaines_24h_mm, pic, heures_pluvieuses[]} }`. Forme exacte = `contract.schema.json`.
 Claude reformule ensuite en phrase naturelle.

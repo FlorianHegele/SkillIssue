@@ -29,27 +29,29 @@ def _load(name):
         return json.load(fh)
 
 
-def _openmeteo_now(rain=True):
+def _openmeteo_now(rain=True, hours=48):
     """Réponse OpenMeteo synthétique calée sur l'heure courante (sinon le filtre
-    'prochaines heures' viderait la fenêtre selon la date du test)."""
+    'prochaines heures' viderait la fenêtre selon la date du test). `hours` permet de
+    simuler une prévision tronquée (< 24 h)."""
     base = datetime.now().astimezone().replace(minute=0, second=0, microsecond=0)
     times, precip = [], []
-    for i in range(48):
+    for i in range(hours):
         times.append((base + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M"))
         precip.append(0.0)
-    if rain:
+    if rain and hours > 3:
         precip[1], precip[2], precip[3] = 0.7, 3.6, 0.2  # pic à +2 h
     return {"hourly_units": {"precipitation": "mm"},
             "hourly": {"time": times, "precipitation": precip, "rain": precip},
             "daily": {"precipitation_sum": [round(sum(precip), 1)]}}
 
 
-def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False):
+def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
+                    vigicrues_doc=None, meteo_hours=48):
     def fake_http(url, params=None, timeout=20, retries=3):
         if "vigicrues" in url:
             if fail_vigicrues:
                 raise SkillError("échec simulé Vigicrues", detail="test")
-            return _load("vigicrues.json")
+            return vigicrues_doc if vigicrues_doc is not None else _load("vigicrues.json")
         if "referentiel/stations" in url:
             return _load("hubeau_stations.json")
         if "observations_tr" in url:
@@ -57,7 +59,7 @@ def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False):
                 return {"count": 0, "data": []}  # station sans débit temps réel
             return _load("hubeau_obs_%s.json" % params["grandeur_hydro"])
         if "open-meteo" in url:
-            return _openmeteo_now(rain=rain)
+            return _openmeteo_now(rain=rain, hours=meteo_hours)
         raise AssertionError("URL non prévue par les fixtures : %s" % url)
     return fake_http
 
@@ -106,6 +108,29 @@ class ContractTest(unittest.TestCase):
         self.assertIsInstance(st["debit_ls"], str)            # absente : chaîne
         self.assertIn("indisponible", st["debit_ls"])
         self.assertEqual(code, 0)                             # station listée (a une mesure)
+
+    def test_vigicrues_niveau_string_is_coerced(self):
+        # L'API renvoie NivInfViCr en chaîne "3" -> doit devenir l'entier 3 + couleur orange,
+        # et rester conforme au schéma (sinon dérive d'API non détectée en offline).
+        doc = {"type": "FeatureCollection", "features": [{
+            "type": "Feature",
+            "geometry": {"type": "MultiLineString",
+                         "coordinates": [[[4.07, 44.11], [4.09, 44.13]]]},
+            "properties": {"lbentcru": "Gardon d'Alès", "NivInfViCr": "3"}}]}
+        main.http_get_json = _make_fake_http(vigicrues_doc=doc)
+        out, _ = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "vigilance"])
+        validate(out, SCHEMA)
+        self.assertEqual(out["vigilance"]["niveau"], 3)
+        self.assertIsInstance(out["vigilance"]["niveau"], int)
+        self.assertEqual(out["vigilance"]["couleur"], "orange")
+
+    def test_short_forecast_degrades_cumul_to_string(self):
+        # < 24 h de prévision -> cumul devient une chaîne honnête (pas un faux total).
+        main.http_get_json = _make_fake_http(meteo_hours=6)
+        out, _ = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "pluie"])
+        validate(out, SCHEMA)
+        self.assertIsInstance(out["pluie"]["cumul_prochaines_24h_mm"], str)
+        self.assertIn("< 24", out["pluie"]["cumul_prochaines_24h_mm"])
 
     def test_error_variant_conforms(self):
         main.http_get_json = _make_fake_http(fail_vigicrues=True)
