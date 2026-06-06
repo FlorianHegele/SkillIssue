@@ -200,6 +200,20 @@ class ContractTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_registry_entry_without_millesime_raises(self):
+        # Garde-fou : une entrée sans millesime entier donnerait millesime:null en sortie
+        # (violation du schéma). On veut une erreur contrôlée, détectée hors-ligne.
+        reg = {"registry_version": 99, "entries": [
+            {"min_skill_version": "1.0.0", "files": [{"zone": "france", "url": "a"}]}]}
+        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        tmp = tempfile.mkdtemp()
+        try:
+            with self.assertRaises(SkillError) as ctx:
+                main.resolve_source(tmp, 10)
+            self.assertIn("millesime", ctx.exception.message)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     # --- cache par hash d'URL + extraction du zip -----------------------------
     def _make_zip(self, path):
         with zipfile.ZipFile(path, "w") as zf:

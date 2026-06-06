@@ -5,8 +5,8 @@
 Aide à protéger/évacuer en crue : localise les équipements sensibles d'une commune (écoles,
 souvent réquisitionnées comme abris et accueillant des publics fragiles ; établissements de
 santé, dont la continuité de soins est vitale). Source = fichier-détail BPE de l'INSEE (Base
-Permanente des Équipements), un CSV NATIONAL volumineux (~1,4 Go décompressé) zippé à télécharger
-(pas une API JSON), qui porte déjà LATITUDE/LONGITUDE WGS84. Voir references/api.md.
+Permanente des Équipements), un gros CSV NATIONAL zippé à télécharger (~165 Mo, ~1,4 Go une fois
+décompressé ; pas une API JSON), qui porte déjà LATITUDE/LONGITUDE WGS84. Voir references/api.md.
 
 Par défaut : écoles (C107/C108/C201/C301/C302) + santé (D106–D113). --all-types élargit aux
 domaines C et D entiers. Filtrage sur la commune (DEPCOM) ; chaque équipement est annoté de sa
@@ -197,8 +197,12 @@ def resolve_source(cache_dir, timeout):
 
     entry = max(compatible, key=lambda e: e.get("millesime", 0))
 
-    # Le registre est maintenu à la main : on valide que l'entrée retenue déclare au moins un
-    # fichier exploitable (zone + url) avant de s'en servir. Erreur contrôlée, pas de trace brute.
+    # Le registre est maintenu à la main : on valide l'entrée retenue avant de s'en servir
+    # (erreur contrôlée, pas de trace brute). millesime DOIT être un entier — sinon la sortie
+    # porterait millesime:null, ce qui violerait le schéma ("type": "integer").
+    if not isinstance(entry.get("millesime"), int):
+        fail("entrée de registre invalide : 'millesime' (entier) manquant ou non numérique ; "
+             "corriger dataset-registry.json", detail={"entry": entry})
     files = entry.get("files") or []
     if not files or not all(f.get("zone") and f.get("url") for f in files):
         fail("entrée de registre incomplète pour le millésime %s : 'files' (zone+url) manquant "
@@ -347,7 +351,10 @@ def load_equipements(csv_path, code_commune, all_types):
     équipement ciblé » (réponse légitimement vide, pas une erreur).
     """
     enc = _csv_encoding(csv_path)
-    with open(csv_path, encoding=enc, newline="") as fh:
+    # errors="replace" : _csv_encoding ne renifle que les 64 premiers Kio ; en UTF-8 un octet
+    # invalide apparu plus loin substituerait un caractère de remplacement plutôt que de lever
+    # un UnicodeDecodeError en pleine lecture (les colonnes lues sont ASCII de toute façon).
+    with open(csv_path, encoding=enc, errors="replace", newline="") as fh:
         reader = csv.reader(fh, delimiter=CSV_SEP)
         header = next(reader, [])
         idx = {c: i for i, c in enumerate(header)}
@@ -518,7 +525,12 @@ def run(args):
         out["vulnerabilite"] = {"error": exc.message, "detail": exc.detail}
         erreurs += 1
     except Exception as exc:  # robustesse : une source ne doit pas tout casser
-        out["vulnerabilite"] = {"error": "erreur inattendue : %s" % exc}
+        # On nomme le type d'exception (et on le trace sur stderr) : sans ça, un bug de parsing
+        # ou d'encodage se présenterait comme un opaque « erreur inattendue ».
+        sys.stderr.write("vulnerabilite-bpe: exception inattendue (%s) : %s\n"
+                         % (type(exc).__name__, exc))
+        out["vulnerabilite"] = {"error": "erreur inattendue (%s) : %s"
+                                % (type(exc).__name__, exc)}
         erreurs += 1
 
     return out, (1 if erreurs else 0)
