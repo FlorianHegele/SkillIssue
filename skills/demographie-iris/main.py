@@ -141,11 +141,13 @@ def resolve_source(cache_dir, timeout):
         fail("registre des datasets introuvable (ni distant, ni cache, ni copie locale)",
              detail="repo du skill incomplet : dataset-registry.json manquant")
 
-    # On retient le registre de plus haut registry_version (le plus à jour).
-    label, reg = max(candidates, key=lambda c: c[1].get("registry_version", 0))
+    # On retient le registre de plus haut registry_version (le plus à jour). Coercition en int
+    def _regv(reg):
+        v = reg.get("registry_version")
+        return v if isinstance(v, int) else 0
+    label, reg = max(candidates, key=lambda c: _regv(c[1]))
     info["registre_source"] = label                       # toujours un label (jamais None)
-    rv = reg.get("registry_version")                       # registre faillible -> coerce en int
-    info["registry_version"] = rv if isinstance(rv, int) else 0
+    info["registry_version"] = _regv(reg)
 
     entries = reg.get("entries") or []
     if not entries:
@@ -185,13 +187,16 @@ def resolve_source(cache_dir, timeout):
 
 
 # --- Choix du/des fichier(s) à interroger -------------------------------------
-def select_files(entry, zone_arg):
+def select_files(entry, zone_arg, code_insee=None):
     """Liste ordonnée des fichiers à essayer pour cette entrée de registre.
 
     AUCUNE hypothèse géographique codée en dur : la couverture est portée par le registre
-    (donnée, pas code). En `auto` on essaie tous les fichiers déclarés, dans l'ordre du
-    registre, jusqu'à trouver la commune — donc ajouter une zone (ex. mayotte) plus tard ne
-    demande qu'une ligne dans le registre. `--zone <nom>` restreint à une zone déclarée.
+    (donnée, pas code). En `auto` on essaie tous les fichiers déclarés jusqu'à trouver la
+    commune — ajouter une zone (ex. mayotte) plus tard ne demande qu'une ligne dans le registre.
+    Optimisation OPTIONNELLE, elle aussi pilotée par le registre : un fichier peut déclarer
+    `code_prefixes` ; les fichiers dont un préfixe correspond au code commune sont essayés en
+    PREMIER (ordre seulement — on essaie toujours tous les fichiers ensuite, donc un indice
+    absent/faux ne change jamais le résultat, juste la rapidité). `--zone <nom>` restreint.
     """
     files = entry.get("files") or []
     if zone_arg and zone_arg != "auto":
@@ -200,7 +205,14 @@ def select_files(entry, zone_arg):
             fail("zone %r inconnue pour le millésime %s" % (zone_arg, entry.get("millesime")),
                  detail={"zones_disponibles": [f.get("zone") for f in files]})
         return chosen
-    return list(files)
+
+    code = code_insee or ""
+
+    def _matches(f):  # 0 = le code matche un préfixe déclaré -> prioritaire ; 1 = sinon
+        prefixes = f.get("code_prefixes") or []
+        return 0 if any(code.startswith(p) for p in prefixes) else 1
+
+    return sorted(files, key=_matches)  # tri stable : conserve l'ordre du registre à match égal
 
 
 # --- Téléchargement + cache (identité = hash de l'URL) ------------------------
@@ -453,7 +465,7 @@ def run(args):
     if loc.code_insee is None:                       # entrée par coordonnées -> commune
         loc = reverse_commune(loc.lat, loc.lon, args.timeout)
 
-    files = select_files(entry, args.zone)           # liste ordonnée, pilotée par le registre
+    files = select_files(entry, args.zone, loc.code_insee)  # ordre piloté par le registre
     dataset_block = _dataset_block(entry, files[0], info)
     out = {"lieu": jsonable(loc), "dataset": dataset_block}
 

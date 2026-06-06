@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "demographie-iris — sortie",
   "type": "object",
-  "required": ["lieu", "dataset"],
+  "required": ["lieu", "dataset", "demographie"],
   "additionalProperties": false,
   "properties": {
     "lieu": { "$ref": "#/$defs/lieu" },
@@ -28,12 +28,13 @@
     },
     "dataset": {
       "type": "object",
-      "required": ["millesime", "zone", "url", "urlhash", "depuis_cache"],
+      "required": ["millesime", "zone", "url", "urlhash", "depuis_cache",
+                   "registre_source", "registry_version", "maj_skill_disponible"],
       "additionalProperties": false,
       "properties": {
         "millesime": { "type": "integer" },
         "geographie": { "type": ["integer", "null"] },
-        "zone": { "enum": ["metropole", "com"] },
+        "zone": { "type": "string" },
         "url": { "type": "string" },
         "urlhash": { "type": "string" },
         "telecharge_le": { "type": ["string", "null"] },

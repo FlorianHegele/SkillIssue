@@ -26,7 +26,8 @@ SCHEMA = os.path.join(SKILL_DIR, "contract.schema.json")
 
 ENTRY = {"millesime": 2022, "geographie": 2024, "prefix": "C22_", "min_skill_version": "1.0.0",
          "files": [{"zone": "metropole", "url": "https://example.test/metro.zip"},
-                   {"zone": "com", "url": "https://example.test/com.zip"}]}
+                   {"zone": "com", "url": "https://example.test/com.zip",
+                    "code_prefixes": ["975", "977", "978"]}]}
 INFO = {"registre_source": "local", "registry_version": 1,
         "maj_skill_disponible": False, "message": None}
 
@@ -78,6 +79,9 @@ class ContractTest(unittest.TestCase):
         # tri par population décroissante
         pops = [it["population"] for it in out["demographie"]["iris"]]
         self.assertEqual(pops, sorted(pops, reverse=True))
+        # libellé : la vraie donnée 2022 n'a pas de LIBIRIS -> chaîne explicative (chemin réel)
+        self.assertIsInstance(out["demographie"]["iris"][0]["libelle"], str)
+        self.assertIn("indisponible", out["demographie"]["iris"][0]["libelle"])
         # provenance
         self.assertEqual(out["dataset"]["zone"], "metropole")
         self.assertEqual(out["dataset"]["millesime"], 2022)
@@ -139,14 +143,30 @@ class ContractTest(unittest.TestCase):
 
     # --- sélection des fichiers (pilotée par le registre, rien en dur) ---------
     def test_select_files(self):
-        # auto : tous les fichiers déclarés, dans l'ordre du registre.
+        # auto sans code : ordre du registre (tous les fichiers essayés).
         self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "auto")],
                          ["metropole", "com"])
+        # auto + code métropole : aucun préfixe COM ne matche -> ordre inchangé.
+        self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "auto", "30007")],
+                         ["metropole", "com"])
+        # auto + code COM (975...) : le fichier dont code_prefixes matche passe en 1er
+        # (évite de télécharger d'abord la métropole ~20 Mo) — mais les deux restent essayés.
+        self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "auto", "97501")],
+                         ["com", "metropole"])
         # zone explicite : restreint.
         self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "com")], ["com"])
         # zone inconnue : erreur contrôlée (pas de plantage).
         with self.assertRaises(SkillError):
             main.select_files(ENTRY, "zone_inexistante")
+
+    def test_libelle_present_path(self):
+        # Chemin défensif : si un millésime fournit LIBIRIS, il est utilisé tel quel.
+        self._mock_all()
+        args = main.build_parser().parse_args(["--commune", "30007"])
+        rows = [{"IRIS": "300070101", "COM": "30007", "C22_PMEN": "1800", "C22_MEN": "820",
+                 "C22_FAM": "540", "C22_MENFAMMONO": "95", "LIBIRIS": "Centre-Ville"}]
+        out = main.build_demographie(ALES, args, rows, "C22_", "metropole")
+        self.assertEqual(out["iris"][0]["libelle"], "Centre-Ville")
 
     # --- registre / versions --------------------------------------------------
     def test_registry_picks_latest_compatible_and_flags_update(self):

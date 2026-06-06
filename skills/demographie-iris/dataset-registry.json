@@ -13,7 +13,8 @@
         },
         {
           "zone": "com",
-          "url": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022-com_csv.zip"
+          "url": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022-com_csv.zip",
+          "code_prefixes": ["975", "977", "978"]
         }
       ]
     }
