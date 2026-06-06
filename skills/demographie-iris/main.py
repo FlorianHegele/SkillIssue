@@ -117,7 +117,8 @@ def resolve_source(cache_dir, timeout):
 
     candidates = []  # (label, registre)
     try:
-        remote = http_get_json(REGISTRY_URL, timeout=timeout)
+        # GitHub raw sert les .json en text/plain -> require_json=False (parsing JSON validé).
+        remote = http_get_json(REGISTRY_URL, timeout=timeout, require_json=False)
         if isinstance(remote, dict) and remote.get("entries"):
             candidates.append(("github", remote))
             try:  # persiste le dernier registre distant connu pour les runs hors-ligne

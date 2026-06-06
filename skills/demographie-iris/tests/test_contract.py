@@ -149,7 +149,7 @@ class ContractTest(unittest.TestCase):
              "url_metropole": "a", "url_com": "b"},
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "2.0.0",
              "url_metropole": "c", "url_com": "d"}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3: reg
+        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             entry, info = main.resolve_source(tmp, 10)
@@ -163,7 +163,7 @@ class ContractTest(unittest.TestCase):
         reg = {"registry_version": 99, "entries": [
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "9.0.0",
              "url_metropole": "c", "url_com": "d"}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3: reg
+        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             with self.assertRaises(SkillError):

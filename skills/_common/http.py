@@ -18,8 +18,14 @@ _USER_AGENT = "flood-response/0.1 (academic project)"
 _DL_CHUNK = 1 << 20  # 1 Mio : on streame (datasets ~20 Mo), jamais tout en RAM
 
 
-def http_get_json(url, params=None, timeout=20, retries=3):
-    """GET JSON avec retry/backoff. Lève SkillError si tout échoue."""
+def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
+    """GET JSON avec retry/backoff. Lève SkillError si tout échoue.
+
+    `require_json` (défaut True) rejette une réponse dont le Content-Type n'annonce pas du
+    JSON — garde-fou contre les pages HTML d'erreur servies en 200 (Vigicrues/Hub'Eau).
+    Le passer à False pour les endpoints de confiance qui mal-étiquettent leur JSON
+    (ex. GitHub raw sert les .json en text/plain) : le parsing JSON reste validé.
+    """
     last_err = None
     for attempt in range(retries):
         try:
@@ -30,7 +36,7 @@ def http_get_json(url, params=None, timeout=20, retries=3):
             ctype = resp.headers.get("Content-Type", "")
             if resp.status_code not in _OK_STATUS:
                 last_err = "HTTP %s" % resp.status_code
-            elif "json" not in ctype.lower():
+            elif require_json and "json" not in ctype.lower():
                 last_err = "réponse non-JSON (Content-Type: %s)" % (ctype or "inconnu")
             else:
                 return resp.json()

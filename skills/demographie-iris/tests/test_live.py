@@ -22,9 +22,7 @@ sys.path.insert(0, os.path.dirname(SKILL_DIR))  # skills/ -> _common
 sys.path.insert(0, SKILL_DIR)                   # demographie-iris/ -> main, contract
 
 import main  # noqa: E402
-from _common import (  # noqa: E402
-    SkillError, http_get_json, resolve_commune, reverse_commune, validate,
-)
+from _common import http_get_json, resolve_commune, reverse_commune, validate  # noqa: E402
 
 SCHEMA = os.path.join(SKILL_DIR, "contract.schema.json")
 LIVE = os.environ.get("RUN_LIVE") == "1"
@@ -45,14 +43,7 @@ class LiveProbes(unittest.TestCase):
         self.assertEqual(len(loc.code_insee), 5)
 
     def test_registry_remote_is_valid_json(self):
-        # Le registre distant n'existe qu'une fois le repo poussé sur GitHub. Tant qu'il est
-        # injoignable, le skill fonctionne via la copie locale (cf. tests end-to-end) ; on
-        # signale alors qu'il reste à pousser plutôt que d'échouer.
-        try:
-            reg = http_get_json(main.REGISTRY_URL, timeout=30)
-        except SkillError as exc:
-            self.skipTest("registre distant injoignable (repo pas encore poussé ?) : %s"
-                          % exc.message)
+        reg = http_get_json(main.REGISTRY_URL, timeout=30, require_json=False)  # raw = text/plain
         self.assertIn("entries", reg)
         self.assertGreater(len(reg["entries"]), 0)
         for e in reg["entries"]:
