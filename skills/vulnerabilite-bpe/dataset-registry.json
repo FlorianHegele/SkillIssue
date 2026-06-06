@@ -1,0 +1,17 @@
+{
+  "registry_version": 1,
+  "entries": [
+    {
+      "millesime": 2024,
+      "geographie": 2024,
+      "min_skill_version": "1.0.0",
+      "files": [
+        {
+          "zone": "france",
+          "url": "https://www.insee.fr/fr/statistiques/fichier/8217525/BPE24.zip"
+        }
+      ]
+    }
+  ],
+  "_doc": "Registre du fichier-detail BPE (Base Permanente des Equipements) de l'INSEE, maintenu a la main, servi en raw depuis GitHub : le skill le lit a chaque execution pour pointer vers le dernier millesime SANS reinstallation. Le fichier-detail est NATIONAL (un seul zip contenant un CSV ~1.4 Go) et porte deja LATITUDE/LONGITUDE WGS84 -> zone unique 'france', filtrage sur DEPCOM cote skill. Ajouter UNE entree par nouveau millesime (ex. BPE25 -> nouvelle URL insee.fr/fr/statistiques/fichier/<id>/BPE25.zip). min_skill_version = version minimale du skill capable de lire l'entree ; l'incrementer uniquement si les colonnes lues (DEPCOM, TYPEQU, LATITUDE, LONGITUDE, NOMRS, QUALITE_XY, TR_DIST_PRECISION) changent de maniere cassante. files = liste des fichiers (zip CSV) ; le skill les essaie tous (mode auto) jusqu'a trouver la commune."
+}

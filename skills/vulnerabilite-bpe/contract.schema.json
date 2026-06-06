@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "vulnerabilite-bpe — sortie",
+  "type": "object",
+  "required": ["lieu", "dataset", "vulnerabilite"],
+  "additionalProperties": false,
+  "properties": {
+    "lieu": { "$ref": "#/$defs/lieu" },
+    "dataset": { "$ref": "#/$defs/dataset" },
+    "vulnerabilite": { "oneOf": [ { "$ref": "#/$defs/vulnerabilite" }, { "$ref": "#/$defs/erreur" } ] }
+  },
+  "$defs": {
+    "lieu": {
+      "type": "object",
+      "required": ["commune", "code_insee", "lat", "lon"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "type": ["string", "null"] },
+        "code_insee": { "type": ["string", "null"] },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "erreur": {
+      "type": "object",
+      "required": ["error"],
+      "properties": { "error": { "type": "string" } }
+    },
+    "dataset": {
+      "type": "object",
+      "required": ["millesime", "zone", "url", "urlhash", "depuis_cache",
+                   "registre_source", "registry_version", "maj_skill_disponible"],
+      "additionalProperties": false,
+      "properties": {
+        "millesime": { "type": "integer" },
+        "geographie": { "type": ["integer", "null"] },
+        "zone": { "type": "string" },
+        "url": { "type": "string" },
+        "urlhash": { "type": "string" },
+        "telecharge_le": { "type": ["string", "null"] },
+        "sha256": { "type": ["string", "null"] },
+        "depuis_cache": { "type": "boolean" },
+        "registre_source": { "type": "string" },
+        "registry_version": { "type": "integer" },
+        "maj_skill_disponible": { "type": "boolean" },
+        "message": { "type": ["string", "null"] }
+      }
+    },
+    "equipement": {
+      "type": "object",
+      "required": ["type_code", "type_libelle", "nom", "lat", "lon", "qualite_geoloc", "distance_km"],
+      "additionalProperties": false,
+      "properties": {
+        "type_code": { "type": "string" },
+        "type_libelle": { "type": "string" },
+        "nom": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "string"] },
+        "lon": { "type": ["number", "string"] },
+        "qualite_geoloc": { "type": ["string", "null"] },
+        "distance_km": { "type": ["number", "string"] }
+      }
+    },
+    "commune": {
+      "type": "object",
+      "required": ["code", "nom", "ecoles_count", "sante_count"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "nom": { "type": ["string", "null"] },
+        "ecoles_count": { "type": "integer" },
+        "sante_count": { "type": "integer" }
+      }
+    },
+    "vulnerabilite": {
+      "type": "object",
+      "required": ["commune", "ecoles", "sante"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "$ref": "#/$defs/commune" },
+        "ecoles": { "type": "array", "items": { "$ref": "#/$defs/equipement" } },
+        "sante": { "type": "array", "items": { "$ref": "#/$defs/equipement" } }
+      }
+    }
+  }
+}
