@@ -11,3 +11,6 @@ __pycache__/
 data/
 *.csv
 *.parquet
+
+# … mais on versionne les petits échantillons CSV de test (mode hors-ligne)
+!skills/*/tests/fixtures/*.csv

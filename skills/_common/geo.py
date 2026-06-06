@@ -97,6 +97,26 @@ def resolve_commune(value, timeout=20):
                 lat=centre[1], lon=centre[0])
 
 
+def reverse_commune(lat, lon, timeout=20):
+    """Géocodage inverse : un point lat/lon -> la commune française qui le contient.
+
+    Utile aux skills indexés sur le code commune INSEE (ex. demographie-iris filtre un CSV
+    par code commune) : `resolve_location` rend un Lieu sans code_insee pour des coordonnées,
+    cette fonction le complète. Conserve les lat/lon fournis (plus précis que le centroïde).
+    Lève SkillError si le point n'est dans aucune commune (mer, étranger).
+    """
+    data = http_get_json(
+        GEO_API,
+        params={"lat": lat, "lon": lon, "fields": "code,nom,centre", "format": "json"},
+        timeout=timeout,
+    )
+    if not isinstance(data, list) or not data:
+        fail("aucune commune française pour lat=%s lon=%s" % (lat, lon),
+             detail="point hors limites communales (mer ou hors de France ?)")
+    c = data[0]
+    return Lieu(commune=c.get("nom"), code_insee=c.get("code"), lat=lat, lon=lon)
+
+
 def resolve_location(commune=None, lat=None, lon=None, timeout=20):
     """Point d'entrée : --commune OU --lat/--lon. Aucun repli. Lève SkillError sinon."""
     has_lat = lat is not None

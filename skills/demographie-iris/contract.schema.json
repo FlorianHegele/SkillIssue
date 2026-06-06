@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "demographie-iris — sortie",
+  "type": "object",
+  "required": ["lieu", "dataset"],
+  "additionalProperties": false,
+  "properties": {
+    "lieu": { "$ref": "#/$defs/lieu" },
+    "dataset": { "$ref": "#/$defs/dataset" },
+    "demographie": { "oneOf": [ { "$ref": "#/$defs/demographie" }, { "$ref": "#/$defs/erreur" } ] }
+  },
+  "$defs": {
+    "lieu": {
+      "type": "object",
+      "required": ["commune", "code_insee", "lat", "lon"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "type": ["string", "null"] },
+        "code_insee": { "type": ["string", "null"] },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "erreur": {
+      "type": "object",
+      "required": ["error"],
+      "properties": { "error": { "type": "string" } }
+    },
+    "dataset": {
+      "type": "object",
+      "required": ["millesime", "zone", "url", "urlhash", "depuis_cache"],
+      "additionalProperties": false,
+      "properties": {
+        "millesime": { "type": "integer" },
+        "geographie": { "type": ["integer", "null"] },
+        "zone": { "enum": ["metropole", "com"] },
+        "url": { "type": "string" },
+        "urlhash": { "type": "string" },
+        "telecharge_le": { "type": ["string", "null"] },
+        "sha256": { "type": ["string", "null"] },
+        "depuis_cache": { "type": "boolean" },
+        "registre_source": { "type": "string" },
+        "registry_version": { "type": "integer" },
+        "maj_skill_disponible": { "type": "boolean" },
+        "message": { "type": ["string", "null"] }
+      }
+    },
+    "commune": {
+      "type": "object",
+      "required": ["code", "nom", "population", "iris_count", "menages_total",
+                   "familles_total", "monoparentales_total", "part_monoparentales_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "nom": { "type": ["string", "null"] },
+        "population": { "type": ["number", "string"] },
+        "iris_count": { "type": "integer" },
+        "menages_total": { "type": ["number", "string"] },
+        "familles_total": { "type": ["number", "string"] },
+        "monoparentales_total": { "type": ["number", "string"] },
+        "part_monoparentales_pct": { "type": ["number", "string"] }
+      }
+    },
+    "iris_item": {
+      "type": "object",
+      "required": ["code", "libelle", "population", "menages", "familles", "monoparentales"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "libelle": { "type": ["string", "null"] },
+        "type_iris": { "type": ["string", "null"] },
+        "population": { "type": ["number", "string"] },
+        "menages": { "type": ["number", "string"] },
+        "familles": { "type": ["number", "string"] },
+        "monoparentales": { "type": ["number", "string"] },
+        "couples_avec_enfants": { "type": ["number", "string"] },
+        "couples_sans_enfants": { "type": ["number", "string"] }
+      }
+    },
+    "demographie": {
+      "type": "object",
+      "required": ["commune", "iris"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "$ref": "#/$defs/commune" },
+        "iris": { "type": "array", "items": { "$ref": "#/$defs/iris_item" } }
+      }
+    }
+  }
+}

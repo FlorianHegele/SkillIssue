@@ -18,13 +18,14 @@ from .geo import (
     normalize,
     resolve_commune,
     resolve_location,
+    reverse_commune,
 )
-from .http import http_get_json
+from .http import http_download, http_get_json
 
 __all__ = [
     "Lieu", "jsonable", "validate",
     "SkillError", "emit_error", "fail",
     "FRANCE_BBOXES", "GEO_API", "haversine_km", "in_france", "normalize",
-    "resolve_commune", "resolve_location",
-    "http_get_json",
+    "resolve_commune", "resolve_location", "reverse_commune",
+    "http_get_json", "http_download",
 ]
