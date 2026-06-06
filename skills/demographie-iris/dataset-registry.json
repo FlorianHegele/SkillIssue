@@ -1,14 +1,22 @@
 {
-  "registry_version": 1,
+  "registry_version": 2,
   "entries": [
     {
       "millesime": 2022,
       "geographie": 2024,
       "prefix": "C22_",
       "min_skill_version": "1.0.0",
-      "url_metropole": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022_csv.zip",
-      "url_com": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022-com_csv.zip"
+      "files": [
+        {
+          "zone": "metropole",
+          "url": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022_csv.zip"
+        },
+        {
+          "zone": "com",
+          "url": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022-com_csv.zip"
+        }
+      ]
     }
   ],
-  "_doc": "Registre des bases INSEE Couples-Familles-Menages par IRIS, maintenu a la main. Servi en raw depuis GitHub : le skill le lit a chaque execution pour pointer vers le dernier millesime SANS reinstallation. Ajouter UNE entree par nouveau millesime INSEE (INSEE diffuse l'annee n en geographie n+2). prefix = prefixe des variables (ex. C22_ pour 2022). min_skill_version = version minimale du skill capable de lire cette entree ; l'incrementer uniquement en cas de changement cassant du schema CSV (le skill choisit alors le dernier millesime compatible avec SA version et signale qu'une mise a jour donnerait des donnees plus recentes)."
+  "_doc": "Registre des bases INSEE Couples-Familles-Menages par IRIS, maintenu a la main, servi en raw depuis GitHub : le skill le lit a chaque execution pour pointer vers le dernier millesime SANS reinstallation. Ajouter UNE entree par nouveau millesime (INSEE diffuse l'annee n en geographie n+2). prefix = prefixe des variables (ex. C22_). min_skill_version = version minimale du skill capable de lire l'entree ; l'incrementer uniquement en cas de changement cassant du schema. files = liste des fichiers (zip CSV) couvrant chacun une zone geographique ; le skill les essaie tous (mode auto) jusqu'a trouver la commune, sans aucune hypothese codee en dur sur la repartition geographique -> ajouter une zone (ex. mayotte) = ajouter un fichier ici, aucun changement de code."
 }

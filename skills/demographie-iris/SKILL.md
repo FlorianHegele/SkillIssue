@@ -42,14 +42,16 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --commune 30007 --detail
 python3 ${CLAUDE_SKILL_DIR}/main.py --commune 97501 --zone com
 ```
 
-Options : `--zone {auto,metropole,com}` (défaut `auto` : choisit le fichier INSEE selon le code
-commune), `--detail` (ajoute par IRIS : couples avec/sans enfants, type d'IRIS), `--cache-dir`
-(répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`), `--refresh` (force le
-re-téléchargement), `--timeout` s (défaut 60).
+Options : `--zone` (défaut `auto` : essaie tous les fichiers déclarés par le registre jusqu'à
+trouver la commune ; ou une zone précise, ex. `metropole`/`com`), `--detail` (ajoute par IRIS :
+couples avec/sans enfants, type d'IRIS), `--cache-dir` (répertoire de cache, défaut `./data` ou
+`$FLOOD_CACHE_DIR`), `--refresh` (force le re-téléchargement), `--timeout` s (défaut 60).
 
 **1er appel** : télécharge le CSV INSEE (~20 Mo zippé pour la métropole) puis le met en **cache**
-(identifié par le hash de l'URL) ; les appels suivants ne re-téléchargent pas. **Mayotte (976)**
-n'est pas couverte par le millésime courant → erreur explicite.
+(identifié par le hash de l'URL) ; les appels suivants ne re-téléchargent pas. La couverture
+géographique n'est **pas codée en dur** : elle est portée par le registre (un fichier par zone) ;
+une commune absente de tous les fichiers du millésime (ex. Mayotte en 2022) renvoie une erreur
+explicite, et une nouvelle zone disponible plus tard s'active par simple ajout au registre.
 
 ## Mise à jour des données (sans réinstaller le skill)
 

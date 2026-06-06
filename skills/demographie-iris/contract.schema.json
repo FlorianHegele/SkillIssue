@@ -39,8 +39,8 @@
         "telecharge_le": { "type": ["string", "null"] },
         "sha256": { "type": ["string", "null"] },
         "depuis_cache": { "type": "boolean" },
-        "registre_source": { "type": ["string", "null"] },
-        "registry_version": { "type": ["integer", "null"] },
+        "registre_source": { "type": "string" },
+        "registry_version": { "type": "integer" },
         "maj_skill_disponible": { "type": "boolean" },
         "message": { "type": ["string", "null"] }
       }

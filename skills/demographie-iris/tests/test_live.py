@@ -47,16 +47,19 @@ class LiveProbes(unittest.TestCase):
         self.assertIn("entries", reg)
         self.assertGreater(len(reg["entries"]), 0)
         for e in reg["entries"]:
-            self.assertIn("url_metropole", e)
             self.assertIn("min_skill_version", e)
+            self.assertTrue(e.get("files"))
+            for f in e["files"]:
+                self.assertIn("zone", f)
+                self.assertIn("url", f)
 
     def test_download_and_columns(self):
-        """Télécharge réellement les 2 fichiers du dernier millésime compatible et vérifie
-        la structure : vrai ZIP, CSV de données (membre non meta_) avec IRIS/COM/<prefix>MEN."""
+        """Télécharge réellement chaque fichier déclaré du dernier millésime compatible et
+        vérifie la structure : vrai ZIP, CSV de données (membre non meta_) avec IRIS/COM/<prefix>MEN."""
         entry, _ = main.resolve_source(tempfile.mkdtemp(), 60)
-        for zone, prefix_required in (("metropole", True), ("com", True)):
+        for file_entry in entry["files"]:
             with tempfile.TemporaryDirectory() as tmp:
-                csv_path, meta = main.dataset_path(entry, zone, tmp, True, 120)
+                csv_path, meta = main.dataset_path(entry, file_entry, tmp, True, 120)
                 self.assertTrue(os.path.getsize(csv_path) > 0)
                 with open(csv_path, "rb") as fh:
                     head = fh.readline().decode(main._csv_encoding(csv_path), "replace")

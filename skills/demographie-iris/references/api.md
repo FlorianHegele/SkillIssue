@@ -71,7 +71,10 @@ Notes :
 - `part_monoparentales_pct` est calculé **uniquement sur les IRIS où familles ET monoparentales
   sont numériques** (cohérence du ratio en présence de secret statistique) ; `monoparentales_total`,
   lui, est la somme complète.
-- **`commune.population` pour les COM** (dépts 975/977/978/986/987/988) est souvent
-  « indisponible » : geo.api ne couvre pas/mal la population des collectivités d'outre-mer.
-  Dégradation propre (chaîne explicative), mais champ peu exploitable hors métropole/DOM.
+- **Couverture géographique non codée en dur** : le registre (`dataset-registry.json`) déclare une
+  liste de `files` (un par zone, ex. métropole, com) ; en `--zone auto` le skill les essaie tous
+  jusqu'à trouver la commune. Aucune hypothèse département→fichier en Python → ajouter une zone
+  (ex. Mayotte si INSEE la publie) = ajouter un fichier au registre, sans changement de code.
+- **`commune.population` outre-mer** : geo.api couvre mal la population de certaines collectivités
+  d'outre-mer → souvent « indisponible » (dégradation propre), champ peu exploitable hors métropole/DOM.
 - Avec `--detail`, chaque IRIS porte en plus `type_iris`, `couples_avec_enfants`, `couples_sans_enfants`.

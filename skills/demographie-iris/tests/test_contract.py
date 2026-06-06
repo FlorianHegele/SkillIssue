@@ -25,8 +25,8 @@ FIXTURE_CSV = os.path.join(HERE, "fixtures", "sample_cfm.csv")
 SCHEMA = os.path.join(SKILL_DIR, "contract.schema.json")
 
 ENTRY = {"millesime": 2022, "geographie": 2024, "prefix": "C22_", "min_skill_version": "1.0.0",
-         "url_metropole": "https://example.test/metro.zip",
-         "url_com": "https://example.test/com.zip"}
+         "files": [{"zone": "metropole", "url": "https://example.test/metro.zip"},
+                   {"zone": "com", "url": "https://example.test/com.zip"}]}
 INFO = {"registre_source": "local", "registry_version": 1,
         "maj_skill_disponible": False, "message": None}
 
@@ -48,7 +48,7 @@ class ContractTest(unittest.TestCase):
                         "sha256": "deadbeef", "depuis_cache": False}
         main.resolve_source = lambda cache_dir, timeout: (dict(ENTRY), dict(INFO))
         main.resolve_location = lambda c, lat, lon, t: loc
-        main.dataset_path = lambda entry, zone, c, r, t: (FIXTURE_CSV, dict(meta))
+        main.dataset_path = lambda entry, file_entry, c, r, t: (FIXTURE_CSV, dict(meta))
 
         def fake_get(url, params=None, timeout=20, retries=3, require_json=True):
             if pop_raises:
@@ -137,20 +137,24 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out["demographie"]["commune"]["code"], "30007")
 
-    # --- zone -----------------------------------------------------------------
-    def test_choose_zone(self):
-        self.assertEqual(main.choose_zone("auto", "97501"), "com")
-        self.assertEqual(main.choose_zone("auto", "30007"), "metropole")
-        self.assertEqual(main.choose_zone("metropole", "97501"), "metropole")
-        self.assertEqual(main.choose_zone("com", "30007"), "com")
+    # --- sélection des fichiers (pilotée par le registre, rien en dur) ---------
+    def test_select_files(self):
+        # auto : tous les fichiers déclarés, dans l'ordre du registre.
+        self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "auto")],
+                         ["metropole", "com"])
+        # zone explicite : restreint.
+        self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "com")], ["com"])
+        # zone inconnue : erreur contrôlée (pas de plantage).
+        with self.assertRaises(SkillError):
+            main.select_files(ENTRY, "zone_inexistante")
 
     # --- registre / versions --------------------------------------------------
     def test_registry_picks_latest_compatible_and_flags_update(self):
         reg = {"registry_version": 99, "entries": [
             {"millesime": 2022, "prefix": "C22_", "min_skill_version": "1.0.0",
-             "url_metropole": "a", "url_com": "b"},
+             "files": [{"zone": "metropole", "url": "a"}, {"zone": "com", "url": "b"}]},
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "2.0.0",
-             "url_metropole": "c", "url_com": "d"}]}
+             "files": [{"zone": "metropole", "url": "c"}]}]}
         main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
@@ -164,7 +168,7 @@ class ContractTest(unittest.TestCase):
     def test_registry_no_compatible_raises(self):
         reg = {"registry_version": 99, "entries": [
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "9.0.0",
-             "url_metropole": "c", "url_com": "d"}]}
+             "files": [{"zone": "metropole", "url": "c"}]}]}
         main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
@@ -195,16 +199,17 @@ class ContractTest(unittest.TestCase):
         main.http_download = fake_dl
         try:
             entry = dict(ENTRY)
-            p1, m1 = main.dataset_path(entry, "metropole", tmp, False, 10)
-            p2, m2 = main.dataset_path(entry, "metropole", tmp, False, 10)
+            fe = {"zone": "metropole", "url": "https://example.test/a.zip"}
+            p1, m1 = main.dataset_path(entry, fe, tmp, False, 10)
+            p2, m2 = main.dataset_path(entry, fe, tmp, False, 10)
             self.assertEqual(len(calls), 1)                  # 2e appel : aucun téléchargement
             self.assertFalse(m1["depuis_cache"])
             self.assertTrue(m2["depuis_cache"])
             with open(p1, encoding="utf-8") as fh:           # c'est bien le CSV de données
                 self.assertTrue(fh.readline().startswith("IRIS;COM"))
             # URL différente -> urlhash différent -> nouveau téléchargement
-            entry2 = dict(ENTRY, url_metropole="https://example.test/autre.zip")
-            main.dataset_path(entry2, "metropole", tmp, False, 10)
+            fe2 = {"zone": "metropole", "url": "https://example.test/autre.zip"}
+            main.dataset_path(entry, fe2, tmp, False, 10)
             self.assertEqual(len(calls), 2)
         finally:
             main.http_download = orig_dl
@@ -219,7 +224,9 @@ class ContractTest(unittest.TestCase):
         main.http_download = fail_dl
         try:
             with self.assertRaises(SkillError) as ctx:
-                main.dataset_path(dict(ENTRY), "metropole", tmp, False, 10)
+                main.dataset_path(dict(ENTRY),
+                                  {"zone": "metropole", "url": "https://example.test/x.zip"},
+                                  tmp, False, 10)
             self.assertIn("mettre à jour le repo", ctx.exception.message)
         finally:
             main.http_download = orig_dl

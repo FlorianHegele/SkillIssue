@@ -48,11 +48,6 @@ REGISTRY_URL = ("https://raw.githubusercontent.com/FlorianHegele/SkillIssue/main
                 "skills/demographie-iris/dataset-registry.json")
 LOCAL_REGISTRY = os.path.join(SKILL_DIR, "dataset-registry.json")
 
-# Départements couverts par le fichier « COM » (collectivités d'outre-mer) ; le reste
-# (métropole + DOM 971-974) est dans le fichier « France hors Mayotte ». Mayotte (976) n'est
-# dans aucun des deux pour le millésime 2022.
-COM_DEPTS = {"975", "977", "978", "986", "987", "988"}
-
 CSV_SEP = ";"
 _REPO_ROOT = os.path.dirname(os.path.dirname(SKILL_DIR))
 DEFAULT_CACHE = os.environ.get("FLOOD_CACHE_DIR") or os.path.join(_REPO_ROOT, "data")
@@ -148,8 +143,9 @@ def resolve_source(cache_dir, timeout):
 
     # On retient le registre de plus haut registry_version (le plus à jour).
     label, reg = max(candidates, key=lambda c: c[1].get("registry_version", 0))
-    info["registre_source"] = label
-    info["registry_version"] = reg.get("registry_version")
+    info["registre_source"] = label                       # toujours un label (jamais None)
+    rv = reg.get("registry_version")                       # registre faillible -> coerce en int
+    info["registry_version"] = rv if isinstance(rv, int) else 0
 
     entries = reg.get("entries") or []
     if not entries:
@@ -165,11 +161,12 @@ def resolve_source(cache_dir, timeout):
 
     entry = max(compatible, key=lambda e: e.get("millesime", 0))
 
-    # Le registre est maintenu à la main : on valide que l'entrée retenue porte bien les deux
-    # URLs avant de s'en servir (sinon KeyError en aval, donc trace brute). Erreur contrôlée.
-    if not entry.get("url_metropole") or not entry.get("url_com"):
-        fail("entrée de registre incomplète pour le millésime %s : url_metropole/url_com "
-             "manquant ; corriger dataset-registry.json" % entry.get("millesime"),
+    # Le registre est maintenu à la main : on valide que l'entrée retenue déclare au moins un
+    # fichier exploitable (zone + url) avant de s'en servir. Erreur contrôlée, pas de trace brute.
+    files = entry.get("files") or []
+    if not files or not all(f.get("zone") and f.get("url") for f in files):
+        fail("entrée de registre incomplète pour le millésime %s : 'files' (zone+url) manquant "
+             "ou invalide ; corriger dataset-registry.json" % entry.get("millesime"),
              detail={"entry": entry})
 
     # Existe-t-il un millésime plus récent mais hors de portée de cette version du skill ?
@@ -187,13 +184,23 @@ def resolve_source(cache_dir, timeout):
     return entry, info
 
 
-# --- Choix du fichier (zone) --------------------------------------------------
-def choose_zone(zone_arg, code_insee):
-    """metropole | com. 'auto' déduit du code département de la commune."""
-    if zone_arg in ("metropole", "com"):
-        return zone_arg
-    code = code_insee or ""
-    return "com" if code[:3] in COM_DEPTS else "metropole"
+# --- Choix du/des fichier(s) à interroger -------------------------------------
+def select_files(entry, zone_arg):
+    """Liste ordonnée des fichiers à essayer pour cette entrée de registre.
+
+    AUCUNE hypothèse géographique codée en dur : la couverture est portée par le registre
+    (donnée, pas code). En `auto` on essaie tous les fichiers déclarés, dans l'ordre du
+    registre, jusqu'à trouver la commune — donc ajouter une zone (ex. mayotte) plus tard ne
+    demande qu'une ligne dans le registre. `--zone <nom>` restreint à une zone déclarée.
+    """
+    files = entry.get("files") or []
+    if zone_arg and zone_arg != "auto":
+        chosen = [f for f in files if f.get("zone") == zone_arg]
+        if not chosen:
+            fail("zone %r inconnue pour le millésime %s" % (zone_arg, entry.get("millesime")),
+                 detail={"zones_disponibles": [f.get("zone") for f in files]})
+        return chosen
+    return list(files)
 
 
 # --- Téléchargement + cache (identité = hash de l'URL) ------------------------
@@ -213,14 +220,15 @@ def _extract_data_csv(zip_path, dest_csv):
     return dest_csv
 
 
-def dataset_path(entry, zone, cache_dir, refresh, timeout):
-    """Garantit la présence locale du CSV de la zone. Retourne (csv_path, meta).
+def dataset_path(entry, file_entry, cache_dir, refresh, timeout):
+    """Garantit la présence locale du CSV d'un fichier (zone) déclaré. Retourne (csv_path, meta).
 
     Cache identifié par le hash de l'URL : si le fichier nommé par cet `urlhash` existe déjà,
     le lien a déjà été téléchargé -> aucun re-téléchargement (sauf --refresh). Si l'URL change
     (nouveau millésime via le registre), l'urlhash change donc le téléchargement se relance.
     """
-    url = entry["url_com"] if zone == "com" else entry["url_metropole"]
+    zone = file_entry.get("zone")
+    url = file_entry.get("url")
     urlhash = _urlhash(url)
     os.makedirs(cache_dir, exist_ok=True)
     csv_path = os.path.join(cache_dir, "cfm-%s.csv" % urlhash)
@@ -331,20 +339,17 @@ def collect_population(loc, timeout):
 
 
 # --- Adaptateur : démographie IRIS (CSV INSEE CFM) ----------------------------
-def collect_demographie(loc, args, csv_path, entry, zone):
+def load_rows_and_prefix(csv_path, code_commune, entry):
+    """Ouvre le CSV, détermine le préfixe des variables et renvoie (rows, prefix) pour la commune."""
     enc = _csv_encoding(csv_path)
     with open(csv_path, encoding=enc, newline="") as fh:
         reader = csv.DictReader(fh, delimiter=CSV_SEP)
-        header = reader.fieldnames or []
-        prefix = resolve_prefix(header, entry)
-        rows = [r for r in reader if (r.get("COM") or "").strip() == loc.code_insee]
+        prefix = resolve_prefix(reader.fieldnames or [], entry)
+        rows = [r for r in reader if (r.get("COM") or "").strip() == code_commune]
+    return rows, prefix
 
-    if not rows:
-        return {"error": "aucun IRIS pour la commune %s dans la base CFM %s (zone %s)"
-                         % (loc.code_insee, entry.get("millesime"), zone),
-                "detail": "commune absente du millésime, ou hors couverture du fichier "
-                          "(ex. Mayotte 976 non incluse)"}
 
+def build_demographie(loc, args, rows, prefix, zone):
     iris_items = []
     tot_men = tot_fam = tot_mono = 0.0
     has_men = has_fam = has_mono = False
@@ -409,21 +414,15 @@ def collect_demographie(loc, args, csv_path, entry, zone):
 
 
 # --- Orchestration ------------------------------------------------------------
-def run(args):
-    entry, info = resolve_source(args.cache_dir, args.timeout)
-
-    loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
-    if loc.code_insee is None:                       # entrée par coordonnées -> commune
-        loc = reverse_commune(loc.lat, loc.lon, args.timeout)
-
-    zone = choose_zone(args.zone, loc.code_insee)
-    url = entry["url_com"] if zone == "com" else entry["url_metropole"]
-    dataset_block = {
+def _dataset_block(entry, file_entry, info):
+    """Bloc de provenance (forme stable). Mis à jour ensuite via _apply_meta."""
+    url = file_entry.get("url")
+    return {
         "millesime": entry.get("millesime"),
         "geographie": entry.get("geographie"),
-        "zone": zone,
+        "zone": file_entry.get("zone"),
         "url": url,
-        "urlhash": _urlhash(url),
+        "urlhash": _urlhash(url) if url else "",
         "telecharge_le": None,
         "sha256": None,
         "depuis_cache": False,
@@ -432,21 +431,54 @@ def run(args):
         "maj_skill_disponible": info["maj_skill_disponible"],
         "message": info["message"],
     }
+
+
+def _apply_meta(block, meta):
+    """Reflète dans le bloc le fichier réellement chargé (zone/url/cache/hash)."""
+    block["zone"] = meta.get("zone", block["zone"])
+    block["url"] = meta.get("url", block["url"])
+    block["urlhash"] = meta.get("urlhash", block["urlhash"])
+    block["telecharge_le"] = meta.get("telecharge_le")
+    block["sha256"] = meta.get("sha256")
+    block["depuis_cache"] = meta.get("depuis_cache", False)
+    if meta.get("message"):
+        block["message"] = ("%s | %s" % (block["message"], meta["message"])
+                            if block["message"] else meta["message"])
+
+
+def run(args):
+    entry, info = resolve_source(args.cache_dir, args.timeout)
+
+    loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
+    if loc.code_insee is None:                       # entrée par coordonnées -> commune
+        loc = reverse_commune(loc.lat, loc.lon, args.timeout)
+
+    files = select_files(entry, args.zone)           # liste ordonnée, pilotée par le registre
+    dataset_block = _dataset_block(entry, files[0], info)
     out = {"lieu": jsonable(loc), "dataset": dataset_block}
 
     erreurs = 0
     try:
-        csv_path, meta = dataset_path(entry, zone, args.cache_dir, args.refresh, args.timeout)
-        dataset_block["telecharge_le"] = meta.get("telecharge_le")
-        dataset_block["sha256"] = meta.get("sha256")
-        dataset_block["depuis_cache"] = meta.get("depuis_cache", False)
-        if meta.get("message"):
-            dataset_block["message"] = (
-                "%s | %s" % (dataset_block["message"], meta["message"])
-                if dataset_block["message"] else meta["message"])
-        result = collect_demographie(loc, args, csv_path, entry, zone)
-        out["demographie"] = result
-        if isinstance(result, dict) and "error" in result:
+        # On essaie chaque fichier déclaré jusqu'à trouver la commune (aucune hypothèse codée
+        # sur la zone). Le cache par urlhash rend les fichiers déjà vus gratuits.
+        found = None
+        for f in files:
+            csv_path, meta = dataset_path(entry, f, args.cache_dir, args.refresh, args.timeout)
+            _apply_meta(dataset_block, meta)         # reflète le dernier fichier chargé
+            rows, prefix = load_rows_and_prefix(csv_path, loc.code_insee, entry)
+            if rows:
+                found = (rows, prefix, meta.get("zone"))
+                break
+        if found:
+            rows, prefix, zone = found
+            out["demographie"] = build_demographie(loc, args, rows, prefix, zone)
+        else:
+            out["demographie"] = {
+                "error": "aucun IRIS pour la commune %s dans le millésime %s"
+                         % (loc.code_insee, entry.get("millesime")),
+                "detail": "commune absente de ce millésime ou non couverte par les fichiers "
+                          "INSEE disponibles (zones essayées : %s)"
+                          % ", ".join(f.get("zone") for f in files)}
             erreurs += 1
     except SkillError as exc:
         out["demographie"] = {"error": exc.message, "detail": exc.detail}
@@ -465,10 +497,10 @@ def build_parser():
     parser.add_argument("--commune", help="Nom ou code INSEE (ex. \"Alès\" ou 30007)")
     parser.add_argument("--lat", type=float, help="Latitude décimale")
     parser.add_argument("--lon", type=float, help="Longitude décimale")
-    parser.add_argument("--zone", choices=["auto", "metropole", "com"], default="auto",
-                        help="Fichier INSEE à utiliser : metropole (+ DOM 971-974), com "
-                             "(collectivités d'outre-mer), ou auto (déduit du code commune). "
-                             "Défaut auto.")
+    parser.add_argument("--zone", default="auto",
+                        help="Restreindre à une zone déclarée dans le registre (ex. metropole, "
+                             "com). Défaut auto : essaie tous les fichiers du millésime jusqu'à "
+                             "trouver la commune (aucune zone codée en dur).")
     parser.add_argument("--cache-dir", dest="cache_dir", default=DEFAULT_CACHE,
                         help="Répertoire de cache des CSV téléchargés (défaut : ./data ou "
                              "$FLOOD_CACHE_DIR).")
