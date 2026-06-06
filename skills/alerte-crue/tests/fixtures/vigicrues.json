@@ -1,0 +1,31 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [[[4.07, 44.11], [4.085, 44.122], [4.095, 44.135]]]
+      },
+      "properties": {
+        "id": "tcc-ales",
+        "lbentcru": "Gardon d'Alès",
+        "stentcru": "Validé",
+        "NivInfViCr": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [[[3.0, 50.6], [3.1, 50.7]]]
+      },
+      "properties": {
+        "id": "tcc-loin",
+        "lbentcru": "Tronçon lointain",
+        "stentcru": "Validé",
+        "NivInfViCr": 1
+      }
+    }
+  ]
+}

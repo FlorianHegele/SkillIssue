@@ -1,0 +1,18 @@
+{
+  "count": 2,
+  "api_version": "2.0.1",
+  "data": [
+    {
+      "code_station": "V715501001",
+      "libelle_station": "Le Gardon d'Alès à Alès [Pont Vieux]",
+      "latitude_station": 44.120354719,
+      "longitude_station": 4.078850426
+    },
+    {
+      "code_station": "V715623001",
+      "libelle_station": "Le Gardon d'Alès à la Grand-Combe [EPTB Gardons]",
+      "latitude_station": 44.207291052,
+      "longitude_station": 4.028312953
+    }
+  ]
+}

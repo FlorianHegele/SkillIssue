@@ -1,0 +1,8 @@
+{
+  "name": "flood-response",
+  "version": "0.1.0",
+  "description": "Aide à la décision lors d'une crue majeure en France : vigilance, hydrométrie temps réel, prévision pluie, démographie, vulnérabilité des équipements, accessibilité routière et hébergement d'urgence. 100% API publiques sans clé.",
+  "author": {
+    "name": "IUT NFC"
+  }
+}

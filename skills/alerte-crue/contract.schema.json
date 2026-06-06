@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "alerte-crue — sortie",
+  "type": "object",
+  "required": ["lieu"],
+  "additionalProperties": false,
+  "properties": {
+    "lieu": { "$ref": "#/$defs/lieu" },
+    "vigilance": { "oneOf": [ { "$ref": "#/$defs/vigilance" }, { "$ref": "#/$defs/erreur" } ] },
+    "hydro": { "oneOf": [ { "$ref": "#/$defs/hydro" }, { "$ref": "#/$defs/erreur" } ] },
+    "pluie": { "oneOf": [ { "$ref": "#/$defs/pluie" }, { "$ref": "#/$defs/erreur" } ] }
+  },
+  "$defs": {
+    "lieu": {
+      "type": "object",
+      "required": ["commune", "code_insee", "lat", "lon"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "type": ["string", "null"] },
+        "code_insee": { "type": ["string", "null"] },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "erreur": {
+      "type": "object",
+      "required": ["error"],
+      "properties": { "error": { "type": "string" } }
+    },
+    "vigilance": {
+      "type": "object",
+      "required": ["couleur", "distance_km"],
+      "additionalProperties": false,
+      "properties": {
+        "couleur": { "enum": ["vert", "jaune", "orange", "rouge", "inconnu"] },
+        "distance_km": { "type": "number" },
+        "niveau": { "type": ["integer", "null"] },
+        "troncon": { "type": ["string", "null"] }
+      }
+    },
+    "hydro": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["station", "distance_km"],
+        "additionalProperties": false,
+        "properties": {
+          "station": { "type": "string" },
+          "distance_km": { "type": "number" },
+          "nom": { "type": ["string", "null"] },
+          "hauteur_mm": { "type": ["number", "string"] },
+          "debit_ls": { "type": ["number", "string"] },
+          "date": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "heure_pluie": {
+      "type": "object",
+      "required": ["heure", "precipitation_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "heure": { "type": "string" },
+        "precipitation_mm": { "type": "number" }
+      }
+    },
+    "pluie": {
+      "type": "object",
+      "required": ["cumul_prochaines_24h_mm", "seuil_mm", "heures_pluvieuses", "modele", "unite"],
+      "additionalProperties": false,
+      "properties": {
+        "cumul_prochaines_24h_mm": { "type": "number" },
+        "seuil_mm": { "type": "number" },
+        "modele": { "type": "string" },
+        "unite": { "type": "string" },
+        "pic": {
+          "oneOf": [ { "$ref": "#/$defs/heure_pluie" }, { "type": "null" } ]
+        },
+        "debut_pluie": { "type": ["string", "null"] },
+        "fin_pluie": { "type": ["string", "null"] },
+        "heures_pluvieuses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/heure_pluie" }
+        },
+        "par_heure": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/heure_pluie" }
+        }
+      }
+    }
+  }
+}

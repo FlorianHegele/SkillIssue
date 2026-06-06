@@ -11,8 +11,11 @@ Re-vérifier avant de figer le code : ces API évoluent (la v1 Hub'Eau a été c
 - Base : `https://www.vigicrues.gouv.fr/services/` (API documentée v1.1 : `.../services/v1.1`).
 - **Sans clé.**
 - Endpoint couleur (renvoie GeoJSON) :
-  `https://www.vigicrues.gouv.fr/services/1/InfoVigiCru.geojson`
-  → `FeatureCollection` ; chaque tronçon a une géométrie + properties :
+  `https://www.vigicrues.gouv.fr/services/InfoVigiCru.geojson`
+  (⚠ l'ancienne forme `…/services/1/InfoVigiCru.geojson` renvoie une **redirection 302** vers
+  celle-ci — suivre les redirections, vérifié le 06/06/2026).
+  → `FeatureCollection` ; chaque tronçon a une géométrie **MultiLineString** (lignes, pas
+  polygones → matcher le tronçon le **plus proche**, pas point-dans-polygone) + properties :
   ```json
   {"CdTCC":"TCC22","id":"764","lbentcru":"Golo aval","stentcru":"Validé","NivInfViCr":1}
   ```
@@ -38,6 +41,8 @@ Re-vérifier avant de figer le code : ces API évoluent (la v1 Hub'Eau a été c
   ```
   Réponse : `{"api_version":"2.0.1", count, next, "data":[{"code_station":"Y251002001","date_obs":"2026-06-05T15:45:00Z","resultat_obs":-360.0}]}`.
 - Formats : `format=json|geojson|csv`. Pagination max 20 000 ; URL max 2083 car.
+  ⚠ Hub'Eau renvoie **HTTP 206** (Partial Content) en pagination : c'est une réponse JSON
+  **valide**, à accepter au même titre que 200 (vérifié le 06/06/2026).
 - Workflow type pour Alès : chercher les stations par bbox/commune via `/referentiel/stations`,
   puis interroger `/observations_tr` sur les `code_station` trouvés.
 
