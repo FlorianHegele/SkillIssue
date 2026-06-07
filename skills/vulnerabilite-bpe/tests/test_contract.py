@@ -165,6 +165,16 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out["vulnerabilite"]["commune"]["code"], "30007")
 
+    def test_reverse_geocode_without_insee_code_raises_clear_error(self):
+        # geo.api renvoie un point sans code commune : on veut l'erreur « géocodage incomplet »
+        # (cause réelle), pas le message trompeur « commune absente de la BPE ».
+        self._mock_all(loc=Lieu(commune=None, code_insee=None, lat=44.128, lon=4.081))
+        main.reverse_commune = lambda lat, lon, t: Lieu(commune="Ω", code_insee=None,
+                                                        lat=lat, lon=lon)
+        with self.assertRaises(SkillError) as ctx:
+            self._run(["--lat", "44.128", "--lon", "4.081"])
+        self.assertIn("géocodage incomplet", ctx.exception.message)
+
     def test_commune_present_without_targeted_equipment(self):
         # Commune bien présente dans la BPE (30258) mais ne portant qu'un type non ciblé (A504) :
         # réponse VALIDE à listes vides, code 0 — surtout pas l'erreur « absente de la BPE ».

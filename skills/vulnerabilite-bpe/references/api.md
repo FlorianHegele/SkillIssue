@@ -60,4 +60,20 @@ Liste hiérarchisée : `insee.fr/fr/metadonnees/source/fichier/BPE23_liste_hiera
 
 ## Sortie attendue (synthèse JSON)
 
-`{ commune, ecoles: [{type, nom?, lat, lon, qualite}], sante: [{type, lat, lon, qualite}] }`
+Contrat réel = `contract.py` / `contract.schema.json`. Forme :
+
+```
+{
+  lieu:    { commune, code_insee, lat, lon },
+  dataset: { millesime, zone, url, urlhash, depuis_cache, registre_source, … },
+  vulnerabilite: {
+    commune: { code, nom, ecoles_count, sante_count },   // compteurs = totaux (avant --top)
+    ecoles:  [ { type_code, type_libelle, nom, lat, lon, qualite_geoloc, distance_km } ],
+    sante:   [ { type_code, type_libelle, nom, lat, lon, qualite_geoloc, distance_km } ],
+    note                                                  // présent seulement si une liste est tronquée
+  }
+}
+```
+
+`lat`/`lon`/`distance_km` valent soit un nombre, soit une chaîne explicative si la mesure manque
+(jamais un `null` ambigu). En cas d'échec, `vulnerabilite` est remplacé par `{ error, detail? }`.

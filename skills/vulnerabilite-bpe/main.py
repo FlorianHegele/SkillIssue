@@ -236,11 +236,12 @@ def build_vulnerabilite(loc, args, rows):
     note = None
     top = args.top
     if top and top > 0 and (total_ecoles > top or total_sante > top):
+        # Troncature signalée UNIQUEMENT dans le JSON (champ `note`) : pas de doublon sur stderr,
+        # qui ne ferait que bruiter une sortie consommée par l'IA.
         note = ("listes limitées aux %d équipements les plus proches (--top) : %d écoles et %d "
                 "établissements de santé au total dans le périmètre ; augmentez --top, ou affinez "
                 "avec --radius / --lat / --lon pour un secteur précis."
                 % (top, total_ecoles, total_sante))
-        sys.stderr.write("vulnerabilite-bpe: %s\n" % note)
         ecoles = ecoles[:top]
         sante = sante[:top]
 
@@ -256,6 +257,12 @@ def run(args):
     loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
     if loc.code_insee is None:                       # entrée par coordonnées -> commune
         loc = reverse_commune(loc.lat, loc.lon, args.timeout)
+    # reverse_commune lève déjà si le point n'est dans aucune commune ; ce garde-fou couvre le cas
+    # résiduel d'un enregistrement geo.api sans code INSEE : sans lui, le filtre DEPCOM ne matcherait
+    # rien et on rendrait le message trompeur « commune absente de la BPE » au lieu de la vraie cause.
+    if loc.code_insee is None:
+        fail("géocodage incomplet : aucun code commune INSEE pour ce point",
+             detail={"commune": loc.commune, "lat": loc.lat, "lon": loc.lon})
 
     files = select_files(entry, args.zone, loc.code_insee)  # ordre piloté par le registre
     dataset_block = ds.dataset_block(entry, files[0], info)
