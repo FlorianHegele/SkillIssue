@@ -62,6 +62,13 @@ JSON sur stdout : `{ lieu, accessibilite }`.
   Le tracé complet n'est pas exposé : récupérable via `osm_id` sur openstreetmap.org si besoin.
 - `accessibilite.note` : rappel « OSM ≠ aléa ».
 
+**Détecter une liste tronquée (pour l'IA).** Il n'y a pas de champ dédié : la liste est tronquée
+**si et seulement si** `len(ouvrages_a_risque) < resume.ouvrages_total`. Dans ce cas, `--limit` a
+borné l'affichage et les ouvrages listés sont **les plus proches** du lieu (tri par distance
+croissante) — il en existe d'autres au-delà. Reformuler honnêtement (ex. « les N plus proches sur
+M ouvrages au total »), et au besoin relancer avec un `--limit` plus haut, ou un `--radius-m`
+réduit pour recentrer, plutôt que de présenter la liste comme exhaustive.
+
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `"indisponible : position absente de la réponse Overpass"`) — jamais un `null` ambigu ; vérifier
 le type avant tout calcul. Une commune introuvable / hors France, ou Overpass indisponible (avec

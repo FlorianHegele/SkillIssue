@@ -210,8 +210,10 @@ def collect_accessibilite(loc, args):
                                   if isinstance(ouv.distance_km, (int, float))
                                   else float("inf")))
 
-    # --limit borne la LISTE ; le résumé compte tous les ouvrages trouvés (signale la troncature).
-    # limit >= 0 garanti par run() ; limit == 0 -> liste vide (résumé seul).
+    # --limit borne la LISTE ; le résumé compte TOUS les ouvrages trouvés. Pas de champ dédié
+    # « tronqué » : la troncature se déduit de len(ouvrages_a_risque) < resume.ouvrages_total
+    # (l'IA la détecte ainsi, cf. SKILL.md « Sortie »). Les ouvrages listés sont les plus proches
+    # (tri par distance). limit >= 0 garanti par run() ; limit == 0 -> liste vide (résumé seul).
     ouvrages_out = [jsonable(ouv) for ouv in retenus[:args.limit]]
 
     resume = C.Resume(
