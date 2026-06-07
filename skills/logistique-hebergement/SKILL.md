@@ -87,7 +87,9 @@ JSON sur stdout : `{ lieu, hebergement }`.
   `salles_communales`, plus deux totaux de couchages distincts — `capacite_fiable_totale` (tags OSM
   + empreintes bâties) et `capacite_majorant_parcelles` (estimations sur parcelle, **majorant** :
   séparées pour ne pas gonfler le total) — avec `sites_capacite_majorant` et `sites_sans_capacite`
-  (sur **tous** les sites trouvés, même au-delà de `--limit`).
+  (sur **tous** les sites trouvés, même au-delà de `--limit`). ⚠ Un même lieu peut être cartographié
+  à la fois en node et en way dans OSM (dédup uniquement par `osm_id`) : compteurs et totaux peuvent
+  surévaluer légèrement.
 - `hebergement.sites[]` : par site `osm_id`, `type` (hôtel/gymnase/école/salle_communale), `nom`,
   `lat`, `lon`, `distance_km`, `capacite` (couchages), `capacite_source`
   (`osm`/`estimee`/`indisponible`), `capacite_methode` (traçabilité), `surface_m2`, `tags`

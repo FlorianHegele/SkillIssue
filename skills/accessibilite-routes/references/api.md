@@ -6,7 +6,10 @@ Détails vérifiés en live (5 juin 2026) sur `overpass-api.de`. Sans clé. OSM 
 
 ## API Overpass
 
-- Endpoint : `https://overpass-api.de/api/interpreter` (POST, paramètre `data=` contenant le QL).
+- Endpoint : `https://overpass-api.de/api/interpreter` (paramètre `data=` contenant le QL).
+  Ce skill l'appelle en **GET** (`?data=…`) : le QL reste court (~600 c, la géométrie est dans la
+  réponse, pas la requête) donc aucun risque de dépassement de longueur d'URL. Passer en **POST**
+  seulement si l'on génère un QL long.
 - Statut/slots : `https://overpass-api.de/api/status` (vérifier avant rafale).
 - **Sans clé** (identification par IP). **2 requêtes concurrentes max / IP** ; fair-use ~**10 000 req/j**,
   < ~1 Go/j. Timeout défaut 180 s, RAM défaut 512 MiB.

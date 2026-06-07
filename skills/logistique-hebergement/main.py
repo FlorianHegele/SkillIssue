@@ -59,7 +59,10 @@ NOTE = ("Capacités d'accueil très peu renseignées dans OpenStreetMap : sauf t
         "estimations hôtelières par défaut (rooms × 2, défaut par étoiles) : bornées, pas "
         "certaines. L'emprise ne tient pas compte des étages ni du mobilier. Les centres "
         "d'hébergement officiels relèvent des Plans Communaux de Sauvegarde, rarement publiés en "
-        "open data : cette liste recense des lieux CANDIDATS, pas des abris validés.")
+        "open data : cette liste recense des lieux CANDIDATS, pas des abris validés. ⚠ Un même "
+        "lieu parfois cartographié à la fois en node ET en way dans OSM (déduplication seulement "
+        "par osm_id) : compteurs et capacités totales peuvent surévaluer légèrement — recouper les "
+        "noms en cas de doute.")
 
 # Tags OSM conservés dans la sortie (les autres sont écartés : sortie lean, cf. CLAUDE.md).
 RELEVANT_TAGS = ("name", "tourism", "leisure", "amenity", "building", "rooms", "beds",

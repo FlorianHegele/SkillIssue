@@ -23,6 +23,7 @@
     "erreur": {
       "type": "object",
       "required": ["error"],
+      "additionalProperties": false,
       "properties": {
         "error": { "type": "string" },
         "detail": {}
@@ -45,6 +46,8 @@
           "type": ["array", "null"],
           "items": {
             "type": "object",
+            "required": ["lat", "lon"],
+            "additionalProperties": false,
             "properties": { "lat": { "type": "number" }, "lon": { "type": "number" } }
           }
         }
