@@ -17,7 +17,8 @@ import json
 import math
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Le dossier parent `skills/` doit être sur sys.path pour importer le paquet _common.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,6 +43,10 @@ OPENMETEO = "https://api.open-meteo.com/v1/forecast"
 
 VIGILANCE_COULEURS = {1: "vert", 2: "jaune", 3: "orange", 4: "rouge"}
 SEUIL_PLUIE_MM = 0.5  # mm/h en deçà desquels une heure est "sèche" (bruit, écartée)
+# OpenMeteo est interrogé avec timezone=Europe/Paris : ses horodatages horaires sont donc
+# en heure locale de Paris (naïfs). On ancre « maintenant » sur CETTE zone, sans dépendre du
+# fuseau de la machine (un serveur en UTC décalerait sinon la fenêtre des 24 h).
+PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
 # --- Adaptateur : vigilance Vigicrues ----------------------------------------
@@ -115,7 +120,7 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
     for dist, s in stations[:max_stations]:
         code = s["code_station"]
         mesures = {}
-        date = None
+        dates = {}  # horodatage propre à chaque grandeur (H et Q peuvent différer)
         for grandeur, key in (("H", "hauteur_mm"), ("Q", "debit_ls")):
             try:
                 obs = http_get_json(
@@ -128,7 +133,7 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
                 rows = obs.get("data", [])
                 if rows:
                     mesures[key] = rows[0].get("resultat_obs")
-                    date = date or rows[0].get("date_obs")
+                    dates[key] = rows[0].get("date_obs")
                 else:  # appel OK mais aucune donnée temps réel pour cette grandeur
                     mesures[key] = "indisponible : pas de mesure temps réel récente"
             except SkillError as exc:  # l'appel a échoué : on le dit, sans masquer
@@ -141,7 +146,8 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
                 nom=s.get("libelle_station"),
                 hauteur_mm=mesures.get("hauteur_mm"),
                 debit_ls=mesures.get("debit_ls"),
-                date=date,
+                date_hauteur=dates.get("hauteur_mm"),
+                date_debit=dates.get("debit_ls"),
             ))
     if not results:
         return {"error": "aucune station Hub'Eau avec donnée temps réel "
@@ -156,7 +162,7 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
     data = http_get_json(
         OPENMETEO,
         params={"latitude": loc.lat, "longitude": loc.lon,
-                "hourly": "precipitation,rain", "daily": "precipitation_sum",
+                "hourly": "precipitation",
                 "models": "meteofrance_arome_france_hd",
                 "timezone": "Europe/Paris", "forecast_days": 2},
         timeout=timeout,
@@ -164,7 +170,7 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
     hourly = data.get("hourly", {})
     times = hourly.get("time", [])
     precip = hourly.get("precipitation", [])
-    now = datetime.now(timezone.utc).astimezone()
+    now = datetime.now(PARIS_TZ)
     cur_hour = now.replace(minute=0, second=0, microsecond=0)
 
     fenetre = []  # (heure_iso, mm) des 24 prochaines heures
@@ -173,8 +179,8 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
             dt = datetime.fromisoformat(t)
         except ValueError:
             continue
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=now.tzinfo)
+        if dt.tzinfo is None:  # OpenMeteo renvoie l'heure locale Paris en naïf -> on l'ancre
+            dt = dt.replace(tzinfo=PARIS_TZ)
         if dt < cur_hour:
             continue
         if len(fenetre) >= 24:
@@ -193,14 +199,31 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
     pic = (C.Pic(heure=pic_raw[0], precipitation_mm=pic_raw[1])
            if pic_raw and pic_raw[1] >= seuil else None)
 
+    # Découpe la fenêtre en épisodes pluvieux CONTIGUS : une heure sèche (< seuil) clôt le
+    # créneau courant. On expose ainsi chaque épisode réel plutôt qu'un début/fin global qui
+    # masquerait les accalmies.
+    creneaux, seg = [], None
+    for t, v in fenetre:
+        if v >= seuil:
+            if seg is None:
+                seg = {"debut": t, "fin": t, "cumul": v}
+            else:
+                seg["fin"], seg["cumul"] = t, seg["cumul"] + v
+        elif seg is not None:
+            creneaux.append(seg)
+            seg = None
+    if seg is not None:
+        creneaux.append(seg)
+    creneaux = [C.Creneau(debut=s["debut"], fin=s["fin"], cumul_mm=round(s["cumul"], 1))
+                for s in creneaux]
+
     pluie = C.Pluie(
         cumul_prochaines_24h_mm=cumul,
         seuil_mm=seuil,
         heures_pluvieuses=pluvieuses,
         unite=data.get("hourly_units", {}).get("precipitation", "mm"),
         pic=pic,
-        debut_pluie=pluvieuses[0].heure if pluvieuses else None,
-        fin_pluie=pluvieuses[-1].heure if pluvieuses else None,
+        creneaux=creneaux,
     )
     if detail:
         out = jsonable(pluie)

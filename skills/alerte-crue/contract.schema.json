@@ -50,7 +50,8 @@
           "nom": { "type": ["string", "null"] },
           "hauteur_mm": { "type": ["number", "string"] },
           "debit_ls": { "type": ["number", "string"] },
-          "date": { "type": ["string", "null"] }
+          "date_hauteur": { "type": ["string", "null"] },
+          "date_debit": { "type": ["string", "null"] }
         }
       }
     },
@@ -63,9 +64,19 @@
         "precipitation_mm": { "type": "number" }
       }
     },
+    "creneau": {
+      "type": "object",
+      "required": ["debut", "fin", "cumul_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "debut": { "type": "string" },
+        "fin": { "type": "string" },
+        "cumul_mm": { "type": "number" }
+      }
+    },
     "pluie": {
       "type": "object",
-      "required": ["cumul_prochaines_24h_mm", "seuil_mm", "heures_pluvieuses", "modele", "unite"],
+      "required": ["cumul_prochaines_24h_mm", "seuil_mm", "heures_pluvieuses", "modele", "unite", "creneaux"],
       "additionalProperties": false,
       "properties": {
         "cumul_prochaines_24h_mm": { "type": ["number", "string"] },
@@ -75,8 +86,10 @@
         "pic": {
           "oneOf": [ { "$ref": "#/$defs/heure_pluie" }, { "type": "null" } ]
         },
-        "debut_pluie": { "type": ["string", "null"] },
-        "fin_pluie": { "type": ["string", "null"] },
+        "creneaux": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/creneau" }
+        },
         "heures_pluvieuses": {
           "type": "array",
           "items": { "$ref": "#/$defs/heure_pluie" }

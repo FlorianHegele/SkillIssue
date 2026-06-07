@@ -57,8 +57,10 @@ explicative** si elle manque (ex. `"indisponible : pas de mesure temps réel ré
 une vraie mesure.
 
 **Pluie** (optimisée pour la décision) : `cumul_prochaines_24h_mm`, `pic` (heure + intensité la
-plus forte), `debut_pluie`/`fin_pluie`, et `heures_pluvieuses[]` — **seules** les heures où la
-pluie atteint le seuil (les heures sèches sont écartées ; liste vide = pas de pluie notable).
+plus forte), `creneaux[]` (chaque épisode pluvieux contigu : `debut`/`fin`/`cumul_mm` — une
+accalmie sépare deux créneaux, pas d'intervalle qui masquerait les trous), et
+`heures_pluvieuses[]` — **seules** les heures où la pluie atteint le seuil (les heures sèches
+sont écartées ; liste vide = pas de pluie notable).
 L'intensité horaire (mm/h) est le facteur déclenchant des crues-éclair cévenoles. La série
 horaire intégrale n'apparaît (`par_heure[]`) qu'avec `--detail`.
 

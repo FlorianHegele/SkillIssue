@@ -75,7 +75,7 @@ class LiveProbes(unittest.TestCase):
         d = http_get_json(
             main.OPENMETEO,
             params={"latitude": ALES_LAT, "longitude": ALES_LON,
-                    "hourly": "precipitation,rain",
+                    "hourly": "precipitation",
                     "models": "meteofrance_arome_france_hd",
                     "timezone": "Europe/Paris", "forecast_days": 1},
             timeout=25,
