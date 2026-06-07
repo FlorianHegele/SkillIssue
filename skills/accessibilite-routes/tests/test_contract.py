@@ -41,7 +41,8 @@ ALES = Lieu(commune="Alès", code_insee="30007", lat=44.128, lon=4.081)
 
 class ContractTest(unittest.TestCase):
     def setUp(self):
-        self._orig = {k: getattr(main, k) for k in ("overpass_query", "resolve_location")}
+        self._orig = {k: getattr(main, k)
+                      for k in ("overpass_query", "resolve_location", "http_get_json")}
 
     def tearDown(self):
         for k, v in self._orig.items():
@@ -126,25 +127,11 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(len(out["accessibilite"]["ouvrages_a_risque"]), 2)
         self.assertEqual(out["accessibilite"]["resume"]["ouvrages_total"], 6)  # compte tout
 
-    def test_default_has_no_geometry_key(self):
+    def test_no_geometry_key_in_output(self):
         self._mock()
         out, _ = self._run(["--commune", "Alès"])
         for o in out["accessibilite"]["ouvrages_a_risque"]:
-            self.assertNotIn("geometry", o)
-
-    def test_geometry_flag_adds_tracks(self):
-        geom = {"elements": [{
-            "type": "way", "id": 200,
-            "geometry": [{"lat": 44.130, "lon": 4.080}, {"lat": 44.131, "lon": 4.081}],
-            "tags": {"highway": "residential", "bridge": "yes"}}]}
-        self._mock(data=geom)
-        out, _ = self._run(["--commune", "Alès", "--geometry"])
-        validate(out, SCHEMA)
-        o = out["accessibilite"]["ouvrages_a_risque"][0]
-        self.assertIn("geometry", o)
-        self.assertEqual(len(o["geometry"]), 2)
-        # point représentatif = centroïde de la géométrie -> distance numérique
-        self.assertIsInstance(o["distance_km"], (int, float))
+            self.assertNotIn("geometry", o)   # tracé complet jamais exposé (récupérable via osm_id)
 
     def test_empty_sector_is_valid_empty(self):
         self._mock(data={"elements": []})
@@ -186,6 +173,30 @@ class ContractTest(unittest.TestCase):
         self.assertIn("error", out["accessibilite"])
         self.assertEqual(code, 1)
 
+    # --- remark Overpass : timeout/OOM serveur rendu en 200 != secteur vide -------
+    def test_remark_with_error_raises_not_empty_sector(self):
+        """Un `remark` d'erreur (réponse 200 tronquée) doit lever, PAS être lu comme 0 ouvrage."""
+        with self.assertRaises(SkillError):
+            main._check_overpass_remark({"elements": [], "remark": "runtime error: Query timed out"})
+
+    def test_remark_benign_passes_through(self):
+        """Un `remark` informatif sans mot d'erreur ne doit PAS bloquer une réponse valide."""
+        data = {"elements": [], "remark": "improve performance by ..."}
+        self.assertIs(main._check_overpass_remark(data), data)
+
+    def test_remark_falls_back_to_mirror_then_errors(self):
+        """Primaire ET miroir renvoient un remark d'erreur -> overpass_query lève (pas de vide)."""
+        timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'recurse'"}
+        main.http_get_json = lambda url, params=None, timeout=20: timed_out
+        with self.assertRaises(SkillError):
+            main.overpass_query("[out:json];", 25)
+        # de bout en bout : la variante {error} reste conforme, code != 0 (pas un secteur vide)
+        main.resolve_location = lambda c, lat, lon, t: ALES
+        out, code = self._run(["--commune", "Alès"])
+        validate(out, SCHEMA)
+        self.assertIn("error", out["accessibilite"])
+        self.assertEqual(code, 1)
+
     # --- QL Overpass : verrouille les filtres (sinon ils ne vivent qu'en live) ----
     def test_query_excludes_pedestrian_and_scopes(self):
         ql = main.build_query(44.13, 4.08, 1200, 25)
@@ -203,9 +214,10 @@ class ContractTest(unittest.TestCase):
         # around: sur CHAQUE sous-requête -> jamais de scan national (7 sous-requêtes)
         self.assertEqual(ql.count("around:"), 7)
 
-    def test_query_geometry_switches_out_statement(self):
-        self.assertIn("out tags center;", main.build_query(44.13, 4.08, 1200, 25, geom=False))
-        self.assertIn("out geom;", main.build_query(44.13, 4.08, 1200, 25, geom=True))
+    def test_query_uses_center_out_statement(self):
+        ql = main.build_query(44.13, 4.08, 1200, 25)
+        self.assertIn("out tags center;", ql)   # point représentatif + tags, léger
+        self.assertNotIn("out geom;", ql)        # le tracé complet n'est jamais demandé
 
     # --- unités ---------------------------------------------------------------
     def test_classify_unit(self):

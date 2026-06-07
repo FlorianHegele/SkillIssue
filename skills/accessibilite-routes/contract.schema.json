@@ -41,16 +41,7 @@
         "lat": { "type": ["number", "string"] },
         "lon": { "type": ["number", "string"] },
         "distance_km": { "type": ["number", "string"] },
-        "tags": { "type": "object" },
-        "geometry": {
-          "type": ["array", "null"],
-          "items": {
-            "type": "object",
-            "required": ["lat", "lon"],
-            "additionalProperties": false,
-            "properties": { "lat": { "type": "number" }, "lon": { "type": "number" } }
-          }
-        }
+        "tags": { "type": "object" }
       }
     },
     "resume": {

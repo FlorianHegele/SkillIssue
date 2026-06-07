@@ -5,7 +5,7 @@
     RUN_LIVE=1 python skills/accessibilite-routes/tests/test_live.py
     RUN_LIVE=1 python -m pytest skills/accessibilite-routes/tests/test_live.py
 
-But : détecter la DÉRIVE (endpoint mort, schéma `elements` changé, `out center`/`out geom` qui ne
+But : détecter la DÉRIVE (endpoint mort, schéma `elements` changé, `out tags center;` qui ne
 renvoie plus de position) — pannes que les tests hors-ligne laisseraient au vert. On n'asserte
 jamais une valeur (elles changent), seulement la STRUCTURE, plus une validation end-to-end.
 """
@@ -37,7 +37,7 @@ class LiveProbes(unittest.TestCase):
 
     def test_overpass_returns_elements_with_center_and_tags(self):
         """Une vraie requête autour d'Alès : les ways doivent porter `center` + `tags`."""
-        ql = main.build_query(ALES_LAT, ALES_LON, 1500, 25, geom=False)
+        ql = main.build_query(ALES_LAT, ALES_LON, 1500, 25)
         data = main.overpass_query(ql, 25)
         self.assertIn("elements", data)
         ways = [e for e in data["elements"] if e.get("type") == "way"]
@@ -51,7 +51,7 @@ class LiveProbes(unittest.TestCase):
         """Le filtre EXCLUDE_HIGHWAY est posé dans le QL (testé hors-ligne) ; ici on vérifie
         qu'Overpass l'honore réellement : aucun way retourné ne doit porter un highway piéton."""
         exclus = set(main.EXCLUDE_HIGHWAY.split("|"))
-        ql = main.build_query(ALES_LAT, ALES_LON, 1500, 25, geom=False)
+        ql = main.build_query(ALES_LAT, ALES_LON, 1500, 25)
         data = main.overpass_query(ql, 25)
         ways = [e for e in data["elements"] if e.get("type") == "way"]
         offenders = [e for e in ways if (e.get("tags", {}).get("highway") in exclus)]

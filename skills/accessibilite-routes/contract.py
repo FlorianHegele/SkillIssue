@@ -31,9 +31,8 @@ class Ouvrage:
     lon: Mesure
     distance_km: Mesure              # haversine depuis le lieu, ou str si coordonnée absente
     tags: dict = field(default_factory=dict)   # sous-ensemble pertinent des tags OSM
-    # La géométrie complète ([{lat,lon}…]) n'est PAS un champ du dataclass : elle est ajoutée
-    # au dict de sortie hors-contrat uniquement avec --geometry (cf. main.collect_accessibilite),
-    # comme alerte-crue ajoute `par_heure` avec --detail. Défaut = point représentatif seul.
+    # Le tracé complet de l'ouvrage n'est PAS exposé : il n'apporte rien à une décision
+    # reformulée en langage naturel et reste récupérable via osm_id (openstreetmap.org).
 
 
 @dataclass

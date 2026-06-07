@@ -14,6 +14,10 @@ Détails vérifiés en live (5 juin 2026) sur `overpass-api.de`. Sans clé. OSM 
 - **Sans clé** (identification par IP). **2 requêtes concurrentes max / IP** ; fair-use ~**10 000 req/j**,
   < ~1 Go/j. Timeout défaut 180 s, RAM défaut 512 MiB.
 - Erreurs : `429` rate limit · `504` ressources dépassées · `406`/HTML sous charge.
+- **Piège `remark`** : un timeout / dépassement mémoire *côté serveur* renvoie **HTTP 200 + JSON
+  valide** avec `{"elements": [], "remark": "runtime error: Query timed out…"}`. Le skill détecte
+  ce `remark` d'erreur (`main._check_overpass_remark`), tente le miroir, puis lève une erreur
+  explicite — sinon une requête tronquée serait lue à tort comme « secteur sans aucun ouvrage ».
 - Mirror de repli : `https://overpass.kumi.systems/api/interpreter`.
 - **Pièges** : éviter les noms accentués dans `area[...]` (→ 406) ; préférer **bbox `(s,o,n,e)`** ou
   **`(around:rayon_m,lat,lon)`**. `out count;` correct (pas `.x out count;`). Ne jamais scanner à
@@ -56,8 +60,9 @@ out geom;
 
 ## Sortie / extraction
 
-- `[out:json]` → `elements[]`. `out geom;` ajoute à chaque way `geometry` (`[{lat,lon}…]`) + `tags`.
-  `out tags center;` = point représentatif + tags (plus léger). `>; out skel qt;` = nodes référencés.
+- `[out:json]` → `elements[]`. Ce skill utilise **`out tags center;`** = point représentatif
+  (`center` pour les ways, `lat/lon` pour les nodes) + `tags`, léger. (`out geom;` ajouterait le
+  tracé complet `[{lat,lon}…]` ; non utilisé — l'`osm_id` suffit à récupérer le tracé à la demande.)
 
 ---
 
@@ -81,8 +86,7 @@ Voir `contract.py` / `contract.schema.json`. Forme : `{ lieu, accessibilite }`.
                 "passages_inferieurs", "zones_inondables" },   // compté sur TOUS les ouvrages
     "ouvrages_a_risque": [                                      // trié par distance ; --limit borne
       { "osm_id": "way/123", "kind": "gué|pont|tunnel|passage_inférieur|zone_inondable",
-        "nom", "highway", "lat", "lon", "distance_km", "tags",
-        "geometry": [ {lat,lon}… ] }                           // uniquement avec --geometry
+        "nom", "highway", "lat", "lon", "distance_km", "tags" }
     ],
     "note": "OSM ≠ aléa : croiser avec Géorisques (zonages TRI)."
   }

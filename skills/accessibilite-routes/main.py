@@ -53,15 +53,15 @@ EXCLUDE_HIGHWAY = "footway|steps|path|cycleway|pedestrian|bridleway|corridor"
 
 
 # --- Requête Overpass ---------------------------------------------------------
-def build_query(lat, lon, radius_m, timeout, geom=False):
+def build_query(lat, lon, radius_m, timeout):
     """Assemble le QL : union scopée par `around:` (jamais à l'échelle nationale).
 
-    `out tags center;` (défaut) = point représentatif + tags, léger. `out geom;` (--geometry)
-    ajoute le tracé complet de chaque way (le tracé est dans la RÉPONSE, la requête reste courte).
+    `out tags center;` = point représentatif + tags, léger (on n'expose pas le tracé complet :
+    l'osm_id suffit à le récupérer à la demande sur openstreetmap.org).
     Filtres : voie carrossable présente et non piétonne ; `layer` scopé aux valeurs négatives
     (points bas) ; flood_prone/hazard restreints aux voies (pas de polygones de zone hors-sujet).
     """
-    out_stmt = "out geom;" if geom else "out tags center;"
+    out_stmt = "out tags center;"
     a = "around:%d,%s,%s" % (int(radius_m), lat, lon)
     road = '["highway"]["highway"!~"^(%s)$"]' % EXCLUDE_HIGHWAY      # carrossable présente
     not_foot = '["highway"!~"^(%s)$"]' % EXCLUDE_HIGHWAY             # exclut piéton, tolère absence
@@ -78,21 +78,40 @@ def build_query(lat, lon, radius_m, timeout, geom=False):
         int(timeout), "\n  ".join(parts), out_stmt)
 
 
+def _check_overpass_remark(data):
+    """Lève SkillError si la réponse Overpass porte un `remark` d'erreur serveur.
+
+    Piège : un timeout / dépassement mémoire côté serveur renvoie HTTP 200 + JSON VALIDE de la
+    forme {"elements": [], "remark": "runtime error: Query timed out…"}. Sans cette garde, la
+    réponse passe http_get_json (200 + Content-Type JSON) et serait lue comme « secteur sans
+    aucun ouvrage » (compteurs à 0, code 0) — un fallback silencieux interdit (cf. CLAUDE.md :
+    distinguer « capteur muet » d'« API en panne »). On force donc le repli/erreur explicite.
+    """
+    remark = data.get("remark") if isinstance(data, dict) else None
+    if remark and ("error" in remark.lower() or "timed out" in remark.lower()):
+        raise SkillError("Overpass a renvoyé une réponse tronquée (timeout/ressources serveur)",
+                         detail=remark)
+    return data
+
+
 def overpass_query(ql, timeout):
     """GET du QL sur Overpass (le QL passe en query-string `?data=`), avec repli sur le miroir.
     Lève SkillError si les deux échouent.
 
-    Le QL est court (~600 caractères) même avec --geometry : la géométrie est dans la RÉPONSE,
-    pas dans la requête — pas de risque de dépassement de longueur d'URL. `http_get_json` rejette
-    déjà les pages HTML d'erreur (406/429/504 servies en 200) via la garde Content-Type, et
-    retente avec backoff. Marge de timeout HTTP au-dessus du `[timeout:]` QL.
+    Le QL est court (~600 caractères) : pas de risque de dépassement de longueur d'URL.
+    `http_get_json` rejette déjà les pages HTML d'erreur (406/429/504 servies en 200) via la
+    garde Content-Type, et retente avec backoff. Marge de timeout HTTP au-dessus du `[timeout:]` QL.
+    Un `remark` d'erreur serveur (timeout/OOM rendu en 200) est traité comme un échec (voir
+    _check_overpass_remark) : on tente alors le miroir plutôt que de relayer un faux résultat vide.
     """
     http_timeout = timeout + 15
     try:
-        return http_get_json(OVERPASS_PRIMARY, params={"data": ql}, timeout=http_timeout)
+        return _check_overpass_remark(
+            http_get_json(OVERPASS_PRIMARY, params={"data": ql}, timeout=http_timeout))
     except SkillError as exc_primary:
         try:
-            return http_get_json(OVERPASS_MIRROR, params={"data": ql}, timeout=http_timeout)
+            return _check_overpass_remark(
+                http_get_json(OVERPASS_MIRROR, params={"data": ql}, timeout=http_timeout))
         except SkillError as exc_mirror:
             fail("Overpass indisponible (serveur principal et miroir)",
                  detail={"principal": exc_primary.message, "miroir": exc_mirror.message})
@@ -136,20 +155,13 @@ def classify(tags):
 def _point(el):
     """Point représentatif (lat, lon) d'un élément, ou (None, None) si introuvable.
 
-    Node -> lat/lon directs. Way avec `out center` -> el['center']. Way avec `out geom`
-    (pas de center) -> centroïde de la géométrie.
+    Node -> lat/lon directs. Way avec `out tags center;` -> el['center'].
     """
     if el.get("type") == "node" and "lat" in el and "lon" in el:
         return el.get("lat"), el.get("lon")
     center = el.get("center")
     if isinstance(center, dict):
         return center.get("lat"), center.get("lon")
-    geom = el.get("geometry")
-    if geom:
-        lats = [p["lat"] for p in geom if isinstance(p, dict) and "lat" in p]
-        lons = [p["lon"] for p in geom if isinstance(p, dict) and "lon" in p]
-        if lats and lons:
-            return sum(lats) / len(lats), sum(lons) / len(lons)
     return None, None
 
 
@@ -177,7 +189,7 @@ def build_ouvrage(loc, el, kind):
 
 # --- Adaptateur : accessibilité via Overpass ----------------------------------
 def collect_accessibilite(loc, args):
-    ql = build_query(loc.lat, loc.lon, args.radius_m, args.timeout, geom=args.geometry)
+    ql = build_query(loc.lat, loc.lon, args.radius_m, args.timeout)
     data = overpass_query(ql, args.timeout)
 
     counts = {"gué": 0, "tunnel": 0, "pont": 0, "passage_inférieur": 0, "zone_inondable": 0}
@@ -191,21 +203,16 @@ def collect_accessibilite(loc, args):
             continue
         seen.add(osm_id)
         counts[kind] += 1
-        retenus.append((build_ouvrage(loc, el, kind), el))
+        retenus.append(build_ouvrage(loc, el, kind))
 
     # Tri par distance croissante ; position absente (distance non numérique) rejetée en fin.
-    retenus.sort(key=lambda pair: (pair[0].distance_km
-                                   if isinstance(pair[0].distance_km, (int, float))
-                                   else float("inf")))
+    retenus.sort(key=lambda ouv: (ouv.distance_km
+                                  if isinstance(ouv.distance_km, (int, float))
+                                  else float("inf")))
 
     # --limit borne la LISTE ; le résumé compte tous les ouvrages trouvés (signale la troncature).
     # limit >= 0 garanti par run() ; limit == 0 -> liste vide (résumé seul).
-    ouvrages_out = []
-    for ouv, el in retenus[:args.limit]:
-        d = jsonable(ouv)
-        if args.geometry:                       # tracé complet hors-contrat (cf. alerte-crue)
-            d["geometry"] = el.get("geometry") or None
-        ouvrages_out.append(d)
+    ouvrages_out = [jsonable(ouv) for ouv in retenus[:args.limit]]
 
     resume = C.Resume(
         ouvrages_total=sum(counts.values()),
@@ -256,9 +263,6 @@ def build_parser():
     parser.add_argument("--limit", type=int, default=100,
                         help="Nombre max d'ouvrages listés, triés par distance (défaut "
                              "%(default)s). Le résumé compte tous les ouvrages trouvés.")
-    parser.add_argument("--geometry", action="store_true",
-                        help="Ajouter le tracé complet (geometry) de chaque ouvrage en plus du "
-                             "point représentatif (sortie plus volumineuse).")
     parser.add_argument("--timeout", type=float, default=25.0,
                         help="Timeout Overpass en secondes. Défaut 25.")
     return parser

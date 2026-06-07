@@ -44,14 +44,10 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --commune 30007
 
 # Par coordonnées, rayon réduit, liste limitée
 python3 ${CLAUDE_SKILL_DIR}/main.py --lat 44.13 --lon 4.08 --radius-m 800 --limit 20
-
-# Avec le tracé complet de chaque ouvrage
-python3 ${CLAUDE_SKILL_DIR}/main.py --commune "Alès" --geometry
 ```
 
 Options : `--radius-m` mètres (défaut 1500, max 5000 — toujours scopé), `--limit` (défaut 100,
-borne la liste ; le résumé compte tous les ouvrages trouvés), `--geometry` (ajoute le tracé
-complet en plus du point représentatif), `--timeout` s (défaut 25).
+borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25).
 
 ## Sortie
 
@@ -62,8 +58,8 @@ JSON sur stdout : `{ lieu, accessibilite }`.
   `--limit`).
 - `accessibilite.ouvrages_a_risque[]` : par ouvrage `osm_id`, `kind`
   (gué/pont/tunnel/passage_inférieur/zone_inondable), `nom` (name ou ref de la voie), `highway`,
-  `lat`, `lon`, `distance_km` (trié par distance croissante), `tags` (sous-ensemble pertinent) ;
-  `geometry` seulement avec `--geometry`.
+  `lat`, `lon`, `distance_km` (trié par distance croissante), `tags` (sous-ensemble pertinent).
+  Le tracé complet n'est pas exposé : récupérable via `osm_id` sur openstreetmap.org si besoin.
 - `accessibilite.note` : rappel « OSM ≠ aléa ».
 
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
