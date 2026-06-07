@@ -1,0 +1,48 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API (fixture réduite, secteur Alès — pour tests hors-ligne)",
+  "elements": [
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 44.130,
+      "lon": 4.083,
+      "tags": { "ford": "yes", "intermittent": "yes" }
+    },
+    {
+      "type": "way",
+      "id": 100,
+      "center": { "lat": 44.129, "lon": 4.082 },
+      "tags": { "highway": "residential", "bridge": "yes", "name": "Pont Vieux", "layer": "1" }
+    },
+    {
+      "type": "way",
+      "id": 101,
+      "center": { "lat": 44.126, "lon": 4.079 },
+      "tags": { "highway": "primary", "tunnel": "yes", "ref": "D6110", "layer": "-1" }
+    },
+    {
+      "type": "way",
+      "id": 102,
+      "center": { "lat": 44.131, "lon": 4.085 },
+      "tags": { "highway": "secondary", "layer": "-1", "name": "Passage sous voie ferrée" }
+    },
+    {
+      "type": "way",
+      "id": 103,
+      "center": { "lat": 44.124, "lon": 4.077 },
+      "tags": { "highway": "residential", "flood_prone": "yes" }
+    },
+    {
+      "type": "way",
+      "id": 104,
+      "tags": { "highway": "track", "bridge": "yes", "name": "Pont sans position" }
+    },
+    {
+      "type": "way",
+      "id": 105,
+      "center": { "lat": 44.140, "lon": 4.090 },
+      "tags": { "highway": "residential", "layer": "1", "name": "Voie sur dalle" }
+    }
+  ]
+}

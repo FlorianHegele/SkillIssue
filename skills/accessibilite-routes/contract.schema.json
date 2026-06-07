@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "accessibilite-routes — sortie",
+  "type": "object",
+  "required": ["lieu", "accessibilite"],
+  "additionalProperties": false,
+  "properties": {
+    "lieu": { "$ref": "#/$defs/lieu" },
+    "accessibilite": { "oneOf": [ { "$ref": "#/$defs/accessibilite" }, { "$ref": "#/$defs/erreur" } ] }
+  },
+  "$defs": {
+    "lieu": {
+      "type": "object",
+      "required": ["commune", "code_insee", "lat", "lon"],
+      "additionalProperties": false,
+      "properties": {
+        "commune": { "type": ["string", "null"] },
+        "code_insee": { "type": ["string", "null"] },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "erreur": {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": { "type": "string" },
+        "detail": {}
+      }
+    },
+    "ouvrage": {
+      "type": "object",
+      "required": ["osm_id", "kind", "nom", "highway", "lat", "lon", "distance_km", "tags"],
+      "additionalProperties": false,
+      "properties": {
+        "osm_id": { "type": "string" },
+        "kind": { "enum": ["gué", "pont", "tunnel", "passage_inférieur", "zone_inondable"] },
+        "nom": { "type": ["string", "null"] },
+        "highway": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "string"] },
+        "lon": { "type": ["number", "string"] },
+        "distance_km": { "type": ["number", "string"] },
+        "tags": { "type": "object" },
+        "geometry": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": { "lat": { "type": "number" }, "lon": { "type": "number" } }
+          }
+        }
+      }
+    },
+    "resume": {
+      "type": "object",
+      "required": ["ouvrages_total", "gues", "ponts", "tunnels",
+                   "passages_inferieurs", "zones_inondables"],
+      "additionalProperties": false,
+      "properties": {
+        "ouvrages_total": { "type": "integer" },
+        "gues": { "type": "integer" },
+        "ponts": { "type": "integer" },
+        "tunnels": { "type": "integer" },
+        "passages_inferieurs": { "type": "integer" },
+        "zones_inondables": { "type": "integer" }
+      }
+    },
+    "accessibilite": {
+      "type": "object",
+      "required": ["rayon_m", "resume", "ouvrages_a_risque", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "rayon_m": { "type": "integer" },
+        "resume": { "$ref": "#/$defs/resume" },
+        "ouvrages_a_risque": { "type": "array", "items": { "$ref": "#/$defs/ouvrage" } },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}
