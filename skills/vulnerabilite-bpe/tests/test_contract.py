@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(SKILL_DIR))  # skills/ -> pour _common
 sys.path.insert(0, SKILL_DIR)                   # vulnerabilite-bpe/ -> pour main, contract
 
 import main  # noqa: E402
-from _common import Lieu, SkillError, validate  # noqa: E402
+from _common import Lieu, SkillError, dataset as ds, validate  # noqa: E402
 
 FIXTURE_CSV = os.path.join(HERE, "fixtures", "sample_bpe.csv")
 SCHEMA = os.path.join(SKILL_DIR, "contract.schema.json")
@@ -40,13 +40,18 @@ ALES = Lieu(commune="Alès", code_insee="30007", lat=44.128, lon=4.081)
 
 class ContractTest(unittest.TestCase):
     def setUp(self):
-        self._orig = {k: getattr(main, k) for k in
-                      ("resolve_source", "resolve_location", "reverse_commune", "dataset_path",
-                       "http_get_json", "http_download")}
+        # resolve_source/dataset_path/… sont des wrappers du skill ; http_* vivent désormais
+        # dans le socle _common.dataset, c'est là qu'on les mocke et qu'on les restaure.
+        self._orig_main = {k: getattr(main, k) for k in
+                           ("resolve_source", "resolve_location", "reverse_commune",
+                            "dataset_path")}
+        self._orig_ds = {k: getattr(ds, k) for k in ("http_get_json", "http_download")}
 
     def tearDown(self):
-        for k, v in self._orig.items():
+        for k, v in self._orig_main.items():
             setattr(main, k, v)
+        for k, v in self._orig_ds.items():
+            setattr(ds, k, v)
 
     def _mock_all(self, loc=ALES, meta=None):
         meta = meta or {"zone": "france", "url": ENTRY["files"][0]["url"],
@@ -165,6 +170,14 @@ class ContractTest(unittest.TestCase):
         self.assertIn("error", out["vulnerabilite"])
         self.assertEqual(code, 1)
 
+    def test_libelle_fallback_on_unknown_code(self):
+        # Les codes TYPEQU évoluent par millésime : un code inconnu ne doit jamais planter,
+        # mais retomber sur un libellé de repli par domaine (C = enseignement, D = santé).
+        self.assertEqual(main._libelle("C107"), "École maternelle")        # connu
+        self.assertEqual(main._libelle("C999"), "Équipement d'enseignement (C999)")
+        self.assertEqual(main._libelle("D999"), "Équipement de santé / action sociale (D999)")
+        self.assertEqual(main._libelle("Z999"), "Z999")                    # hors domaines C/D
+
     def test_select_files(self):
         self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "auto")], ["france"])
         self.assertEqual([f["zone"] for f in main.select_files(ENTRY, "france")], ["france"])
@@ -178,7 +191,7 @@ class ContractTest(unittest.TestCase):
              "files": [{"zone": "france", "url": "a"}]},
             {"millesime": 2099, "min_skill_version": "2.0.0",
              "files": [{"zone": "france", "url": "b"}]}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        ds.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             entry, info = main.resolve_source(tmp, 10)
@@ -192,7 +205,7 @@ class ContractTest(unittest.TestCase):
         reg = {"registry_version": 99, "entries": [
             {"millesime": 2099, "min_skill_version": "9.0.0",
              "files": [{"zone": "france", "url": "c"}]}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        ds.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             with self.assertRaises(SkillError):
@@ -205,7 +218,7 @@ class ContractTest(unittest.TestCase):
         # (violation du schéma). On veut une erreur contrôlée, détectée hors-ligne.
         reg = {"registry_version": 99, "entries": [
             {"min_skill_version": "1.0.0", "files": [{"zone": "france", "url": "a"}]}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        ds.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             with self.assertRaises(SkillError) as ctx:
@@ -231,8 +244,8 @@ class ContractTest(unittest.TestCase):
             calls.append(url)
             shutil.copyfile(src_zip, dest)
             return dest
-        orig_dl = main.http_download
-        main.http_download = fake_dl
+        orig_dl = ds.http_download
+        ds.http_download = fake_dl
         try:
             entry = dict(ENTRY)
             fe = {"zone": "france", "url": "https://example.test/a.zip"}
@@ -247,7 +260,7 @@ class ContractTest(unittest.TestCase):
             main.dataset_path(entry, fe2, tmp, False, 10)
             self.assertEqual(len(calls), 2)                  # URL différente -> re-téléchargement
         finally:
-            main.http_download = orig_dl
+            ds.http_download = orig_dl
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_download_failure_without_cache_raises_update_message(self):
@@ -255,8 +268,8 @@ class ContractTest(unittest.TestCase):
 
         def fail_dl(url, dest, timeout=60, retries=3, expect_content_type=None):
             raise SkillError("réseau coupé", detail="test")
-        orig_dl = main.http_download
-        main.http_download = fail_dl
+        orig_dl = ds.http_download
+        ds.http_download = fail_dl
         try:
             with self.assertRaises(SkillError) as ctx:
                 main.dataset_path(dict(ENTRY),
@@ -264,7 +277,7 @@ class ContractTest(unittest.TestCase):
                                   tmp, False, 10)
             self.assertIn("mettre à jour le repo", ctx.exception.message)
         finally:
-            main.http_download = orig_dl
+            ds.http_download = orig_dl
             shutil.rmtree(tmp, ignore_errors=True)
 
 

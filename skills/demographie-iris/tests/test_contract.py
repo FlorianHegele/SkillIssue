@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(SKILL_DIR))  # skills/ -> pour _common
 sys.path.insert(0, SKILL_DIR)                   # demographie-iris/ -> pour main, contract
 
 import main  # noqa: E402
-from _common import Lieu, SkillError, validate  # noqa: E402
+from _common import Lieu, SkillError, dataset as ds, validate  # noqa: E402
 
 FIXTURE_CSV = os.path.join(HERE, "fixtures", "sample_cfm.csv")
 SCHEMA = os.path.join(SKILL_DIR, "contract.schema.json")
@@ -36,13 +36,18 @@ ALES = Lieu(commune="Alès", code_insee="30007", lat=44.12, lon=4.08)
 
 class ContractTest(unittest.TestCase):
     def setUp(self):
+        # http_get_json reste mocké sur main (collect_population l'appelle directement) ; les
+        # http_* du socle registre→cache vivent dans _common.dataset, capturés/restaurés à part.
         self._orig = {k: getattr(main, k) for k in
                       ("resolve_source", "resolve_location", "reverse_commune",
                        "dataset_path", "http_get_json")}
+        self._orig_ds = {k: getattr(ds, k) for k in ("http_get_json", "http_download")}
 
     def tearDown(self):
         for k, v in self._orig.items():
             setattr(main, k, v)
+        for k, v in self._orig_ds.items():
+            setattr(ds, k, v)
 
     def _mock_all(self, loc=ALES, population=40000, pop_raises=False, meta=None):
         meta = meta or {"telecharge_le": "2026-06-06T10:00:00+02:00",
@@ -175,7 +180,7 @@ class ContractTest(unittest.TestCase):
              "files": [{"zone": "metropole", "url": "a"}, {"zone": "com", "url": "b"}]},
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "2.0.0",
              "files": [{"zone": "metropole", "url": "c"}]}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        ds.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             entry, info = main.resolve_source(tmp, 10)
@@ -189,7 +194,7 @@ class ContractTest(unittest.TestCase):
         reg = {"registry_version": 99, "entries": [
             {"millesime": 2099, "prefix": "C99_", "min_skill_version": "9.0.0",
              "files": [{"zone": "metropole", "url": "c"}]}]}
-        main.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
+        ds.http_get_json = lambda url, params=None, timeout=20, retries=3, require_json=True: reg
         tmp = tempfile.mkdtemp()
         try:
             with self.assertRaises(SkillError):
@@ -215,8 +220,8 @@ class ContractTest(unittest.TestCase):
             calls.append(url)
             shutil.copyfile(src_zip, dest)
             return dest
-        orig_dl = main.http_download
-        main.http_download = fake_dl
+        orig_dl = ds.http_download
+        ds.http_download = fake_dl
         try:
             entry = dict(ENTRY)
             fe = {"zone": "metropole", "url": "https://example.test/a.zip"}
@@ -232,7 +237,7 @@ class ContractTest(unittest.TestCase):
             main.dataset_path(entry, fe2, tmp, False, 10)
             self.assertEqual(len(calls), 2)
         finally:
-            main.http_download = orig_dl
+            ds.http_download = orig_dl
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_download_failure_without_cache_raises_update_message(self):
@@ -240,8 +245,8 @@ class ContractTest(unittest.TestCase):
 
         def fail_dl(url, dest, timeout=60, retries=3, expect_content_type=None):
             raise SkillError("réseau coupé", detail="test")
-        orig_dl = main.http_download
-        main.http_download = fail_dl
+        orig_dl = ds.http_download
+        ds.http_download = fail_dl
         try:
             with self.assertRaises(SkillError) as ctx:
                 main.dataset_path(dict(ENTRY),
@@ -249,7 +254,7 @@ class ContractTest(unittest.TestCase):
                                   tmp, False, 10)
             self.assertIn("mettre à jour le repo", ctx.exception.message)
         finally:
-            main.http_download = orig_dl
+            ds.http_download = orig_dl
             shutil.rmtree(tmp, ignore_errors=True)
 
 

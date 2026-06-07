@@ -78,6 +78,11 @@ JSON sur stdout : `{ lieu, dataset, vulnerabilite }`.
   `nom` (NOMRS si renseigné), `lat`, `lon`, `qualite_geoloc`, `distance_km` (trié par distance
   croissante).
 
+> **`distance_km` est mesurée depuis le point résolu.** Avec `--commune`, ce point est le
+> **centroïde** de la commune (via `geo.api`) : pour une grande commune ou une crue localisée, le
+> tri par distance peut être trompeur. Pour viser un secteur précis (point d'inondation), passer
+> `--lat`/`--lon` plutôt qu'un nom de commune.
+
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `"indisponible : coordonnées de l'équipement absentes"`) — jamais un `null` ambigu ; vérifier le
 type avant tout calcul. Trois cas distincts en sortie :
