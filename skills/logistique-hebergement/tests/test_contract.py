@@ -121,10 +121,11 @@ class ContractTest(unittest.TestCase):
         self._mock()
         out, _ = self._run(["--commune", "Alès"])
         r = out["hebergement"]["resume"]
-        # capacités numériques : 2 hôtels + stars + gymnase + école = 5 ; 3 indisponibles.
+        # fiable = hôtels seuls (rooms 100 + beds 80 + 4★ 140) ; gymnase + école = majorants parcelle.
         self.assertEqual(r["sites_sans_capacite"], 3)
-        self.assertIsInstance(r["capacite_estimee_totale"], int)
-        self.assertGreaterEqual(r["capacite_estimee_totale"], 100 + 80 + 140)
+        self.assertEqual(r["capacite_fiable_totale"], 100 + 80 + 140)
+        self.assertEqual(r["sites_capacite_majorant"], 2)             # gymnase + école (parcelles)
+        self.assertGreater(r["capacite_majorant_parcelles"], 0)
 
     def test_missing_position_is_explanatory_string(self):
         self._mock()
@@ -244,6 +245,32 @@ class ContractTest(unittest.TestCase):
     def test_footprint_m2_missing_is_string(self):
         self.assertIsInstance(main.footprint_m2(None), str)
         self.assertIsInstance(main.footprint_m2([{"lat": 1.0, "lon": 1.0}]), str)
+
+    def test_surface_of_relation_multipolygon(self):
+        # Relation `out geom` : la géométrie est dans les membres (outer - inner).
+        ring = lambda d: [{"lat": 0.0, "lon": 0.0}, {"lat": 0.0, "lon": d},
+                          {"lat": d, "lon": d}, {"lat": d, "lon": 0.0}, {"lat": 0.0, "lon": 0.0}]
+        rel = {"type": "relation", "members": [
+            {"type": "way", "role": "outer", "geometry": ring(0.002)},   # grand carré
+            {"type": "way", "role": "inner", "geometry": ring(0.001)},   # trou
+        ]}
+        area = main.surface_of(rel)
+        self.assertIsInstance(area, (int, float))
+        outer = main.footprint_m2(ring(0.002))
+        inner = main.footprint_m2(ring(0.001))
+        self.assertAlmostEqual(area, outer - inner, delta=1.0)
+        # Sans membres surfaciques -> chaîne.
+        self.assertIsInstance(main.surface_of({"type": "relation", "members": []}), str)
+        self.assertIsInstance(main.surface_of({"type": "node", "lat": 1.0, "lon": 1.0}), str)
+
+    def test_hotel_bare_capacity_is_estimee_not_osm(self):
+        # `capacity` nu sur un hôtel est ambigu -> estimee, pas osm.
+        cap, src, methode = main.estimate_capacity("hôtel", {"capacity": "120"}, "x")
+        self.assertEqual((cap, src), (120.0, "estimee"))
+        self.assertIn("ambigu", methode)
+        # rooms prime sur capacity nu.
+        cap, src, _ = main.estimate_capacity("hôtel", {"rooms": "10", "capacity": "999"}, "x")
+        self.assertEqual((cap, src), (20.0, "estimee"))
 
     def test_estimate_capacity_branches(self):
         cap, src, _ = main.estimate_capacity("hôtel", {"rooms": "50"}, "x")

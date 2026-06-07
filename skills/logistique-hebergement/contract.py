@@ -49,8 +49,14 @@ class Resume:
     gymnases: int
     ecoles: int
     salles_communales: int
-    capacite_estimee_totale: int     # somme des capacités NUMÉRIQUES (couchages mobilisables)
-    sites_sans_capacite: int         # nb de sites dont la capacité n'a pu être ni lue ni estimée
+    # On NE somme PAS ensemble les capacités fiables et les majorants parcelle : un seul lycée
+    # mappé en parcelle peut peser des milliers de couchages fantômes et écraser le total.
+    # « fiable » = NON sur-estimé par une parcelle, PAS « certain » : ce total inclut des
+    # estimations hôtelières par défaut (rooms×2, défaut par étoiles), spéculatives mais bornées.
+    capacite_fiable_totale: int          # tags OSM + empreintes bâties + estim. hôtelières bornées
+    capacite_majorant_parcelles: int     # estimations PARCELLE (majorant, espaces extérieurs inclus)
+    sites_capacite_majorant: int         # nb de sites dont la capacité est un majorant parcelle
+    sites_sans_capacite: int             # nb de sites dont la capacité n'a pu être ni lue ni estimée
 
 
 @dataclass

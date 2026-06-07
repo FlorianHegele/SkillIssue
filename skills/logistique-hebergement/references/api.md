@@ -13,15 +13,20 @@ Voir `../../accessibilite-routes/references/api.md` pour les règles générales
 ```overpassql
 [out:json][timeout:25];
 (
-  nwr["tourism"="hotel"](43.78,4.30,43.88,4.40);
-  nwr["leisure"="sports_centre"](43.78,4.30,43.88,4.40);
-  nwr["amenity"="school"](43.78,4.30,43.88,4.40);
-  nwr["amenity"="community_centre"](43.78,4.30,43.88,4.40);
+  nwr["tourism"="hotel"](around:2000,44.13,4.08);
+  nwr["leisure"="sports_centre"](around:2000,44.13,4.08);
+  nwr["leisure"="fitness_centre"](around:2000,44.13,4.08);
+  nwr["building"="sports_hall"](around:2000,44.13,4.08);
+  nwr["amenity"="school"](around:2000,44.13,4.08);
+  nwr["amenity"="community_centre"](around:2000,44.13,4.08);
 );
-out tags center;
+out geom;
 ```
-(bbox sur Nîmes — testé : 223 éléments → 122 écoles, 49 sports_centre, 40 hôtels, 12 community_centre.)
-`nwr` = nodes+ways+relations en une passe ; `out tags center;` = tags + point central.
+`nwr` = nodes+ways+relations en une passe. **`out geom;`** (et non `out tags center;`) : on a besoin
+du tracé pour calculer l'emprise au sol (base de l'estimation de capacité des gymnases/écoles/salles) ;
+le tracé sert au calcul puis n'est exposé dans la sortie qu'avec `--geometry`. `around:` sur **chaque**
+sous-requête (jamais de scan national). Test initial en bbox sur Nîmes : 223 éléments → 122 écoles,
+49 sports_centre, 40 hôtels, 12 community_centre (avant ajout de fitness_centre / building=sports_hall).
 
 ## Lieux candidats (tags)
 
@@ -49,6 +54,11 @@ Sur 40 hôtels de Nîmes (live) : `rooms` 7/40 · `stars` 13/40 · `capacity:roo
 
 ---
 
-## Sortie attendue (synthèse JSON)
+## Sortie
 
-`{ zone_sinistree: {lat, lon}, rayon_recherche_m, sites: [{type, nom?, lat, lon, capacite, capacite_source: "osm"|"estimee"}] }`
+Contrat réel = `../contract.py` + `../contract.schema.json` (fait foi). En résumé :
+`{ lieu, hebergement: { rayon_m, resume, sites: [{type, nom, lat, lon, distance_km, capacite,
+capacite_source: "osm"|"estimee"|"indisponible", capacite_methode, surface_m2, tags}], note } }`,
+sites triés par capacité décroissante. Le `resume` sépare `capacite_fiable_totale` (tags OSM +
+empreintes bâties) de `capacite_majorant_parcelles` (estimations sur parcelle = majorant), pour ne
+pas additionner des couchages fantômes (cf. piège des polygones de parcelle ci-dessus).

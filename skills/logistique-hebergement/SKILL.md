@@ -27,6 +27,29 @@ défaut par étoiles ; gymnase/école/salle ≈ emprise au sol / 4 m² par couch
 > d'hébergement officiels relèvent des Plans Communaux de Sauvegarde, rarement publiés. Ce rappel
 > est inclus dans le champ `note` de la sortie.
 
+## Calcul de l'estimation des places
+
+Le nombre de couchages est **rarement une donnée, presque toujours une estimation grossière**. Le
+champ `capacite_methode` dit, pour chaque site, comment le chiffre a été obtenu :
+
+- **`capacite_source: "osm"`** — tiré d'un tag explicite de couchages (`beds`, `capacity:beds`,
+  `capacity:persons`). Le plus fiable, mais **très rare** dans OSM.
+- **`capacite_source: "estimee"`, hôtels** — `rooms × 2`, ou à défaut un **forfait par classe
+  d'étoiles** (heuristique : le nombre d'étoiles ne dit rien de la taille réelle de l'hôtel → chiffre
+  spéculatif). `capacity` nu est traité comme estimation (ambigu sur OSM : parfois des places de
+  parking).
+- **`capacite_source: "estimee"`, gymnases/écoles/salles** — `emprise au sol / 4 m²`. Fiable **si**
+  l'emprise est un bâtiment (`capacite_methode` = « surface bâtie ») ; **majorant** si c'est une
+  **parcelle** (« surface parcelle… ») car le polygone OSM englobe souvent cours, stades et parkings.
+  L'emprise ne tient pas compte des étages, des cloisons ni du mobilier.
+- **`capacite_source: "indisponible"`** — ni tag ni surface exploitable : aucun chiffre inventé, une
+  chaîne explique pourquoi.
+
+⚠ **`capacite_fiable_totale` ne veut pas dire « certain »** : cela signifie seulement « hors majorant
+parcelle ». Ce total inclut des estimations hôtelières spéculatives (rooms×2, défaut par étoiles). Les
+capacités sur parcelle, potentiellement énormes, sont isolées dans `capacite_majorant_parcelles`. Aucun
+de ces chiffres ne remplace une vérification de terrain.
+
 ## Quand l'utiliser
 
 L'utilisateur veut savoir **où mettre les sinistrés à l'abri** et **combien de personnes** chaque
@@ -61,8 +84,10 @@ en plus du point représentatif), `--timeout` s (défaut 25).
 JSON sur stdout : `{ lieu, hebergement }`.
 - `hebergement.rayon_m` : rayon utilisé.
 - `hebergement.resume` : compteurs `sites_total`, `hotels`, `gymnases`, `ecoles`,
-  `salles_communales`, plus `capacite_estimee_totale` (somme des capacités numériques) et
-  `sites_sans_capacite` (sur **tous** les sites trouvés, même au-delà de `--limit`).
+  `salles_communales`, plus deux totaux de couchages distincts — `capacite_fiable_totale` (tags OSM
+  + empreintes bâties) et `capacite_majorant_parcelles` (estimations sur parcelle, **majorant** :
+  séparées pour ne pas gonfler le total) — avec `sites_capacite_majorant` et `sites_sans_capacite`
+  (sur **tous** les sites trouvés, même au-delà de `--limit`).
 - `hebergement.sites[]` : par site `osm_id`, `type` (hôtel/gymnase/école/salle_communale), `nom`,
   `lat`, `lon`, `distance_km`, `capacite` (couchages), `capacite_source`
   (`osm`/`estimee`/`indisponible`), `capacite_methode` (traçabilité), `surface_m2`, `tags`

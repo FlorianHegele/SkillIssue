@@ -41,6 +41,10 @@ DEFAULT_RADIUS_M = 2000
 MAX_RADIUS_M = 5000          # garde-fou fair-use : scoper toujours (jamais de scan national)
 
 SURFACE_PAR_COUCHAGE_M2 = 4  # ~4 m² par couchage sur un hébergement collectif (gymnase, salle…)
+# Marque, dans capacite_methode, une capacité estimée sur une PARCELLE (terrain, non bâti) : c'est
+# un majorant qu'on agrège à part du reste (cf. collect_hebergement). Lié au libellé pour éviter
+# toute dérive entre la production de l'étiquette et sa détection.
+MAJORANT_MARKER = "majorant"
 # Chambres par défaut selon la classe d'étoiles, faute de tag `rooms` (estimation grossière).
 CHAMBRES_DEFAUT_PAR_ETOILE = {1: 15, 2: 25, 3: 40, 4: 70, 5: 100}
 CHAMBRES_DEFAUT_HOTEL = 30   # hôtel sans rooms ni étoiles exploitables
@@ -51,7 +55,9 @@ NOTE = ("Capacités d'accueil très peu renseignées dans OpenStreetMap : sauf t
         "confirmer sur place. ⚠ Quand l'emprise est une PARCELLE (polygone leisure/amenity sans "
         "tag building, voir capacite_methode), elle englobe souvent des espaces extérieurs "
         "(cours, stades, parkings) : la capacité est alors un MAJORANT, pas la surface utile "
-        "intérieure. L'emprise ne tient pas compte des étages ni du mobilier. Les centres "
+        "intérieure. « capacite_fiable_totale » = hors majorant parcelle, mais inclut des "
+        "estimations hôtelières par défaut (rooms × 2, défaut par étoiles) : bornées, pas "
+        "certaines. L'emprise ne tient pas compte des étages ni du mobilier. Les centres "
         "d'hébergement officiels relèvent des Plans Communaux de Sauvegarde, rarement publiés en "
         "open data : cette liste recense des lieux CANDIDATS, pas des abris validés.")
 
@@ -144,16 +150,20 @@ def estimate_capacity(type_, tags, surface_m2):
             return float(round(n)), "osm", "tag %s=%s" % (key, tags[key])
 
     if type_ == "hôtel":
-        # 2a) hôtel : capacity:persons / capacity = capacité d'accueil directe.
-        for key in ("capacity:persons", "capacity"):
-            n = _num(tags.get(key))
-            if n is not None:
-                return float(round(n)), "osm", "tag %s=%s" % (key, tags[key])
-        # 2b) rooms -> ~2 couchages par chambre.
+        # 2a) capacity:persons = capacité d'accueil explicite en personnes (non ambigu).
+        n = _num(tags.get("capacity:persons"))
+        if n is not None:
+            return float(round(n)), "osm", "tag capacity:persons=%s" % tags["capacity:persons"]
+        # 2b) rooms -> ~2 couchages par chambre (plus fiable que `capacity` nu).
         rooms = _num(tags.get("rooms"))
         if rooms is not None:
             return float(round(rooms * 2)), "estimee", "rooms×2 (%d chambres)" % int(rooms)
-        # 2c) défaut grossier par classe d'étoiles (chambres par défaut × 2 couchages).
+        # 2c) `capacity` nu : très ambigu sur OSM (parfois places de parking) -> estimation, pas osm.
+        n = _num(tags.get("capacity"))
+        if n is not None:
+            return (float(round(n)), "estimee",
+                    "tag capacity=%s (ambigu — interprété comme personnes)" % tags["capacity"])
+        # 2d) défaut grossier par classe d'étoiles (chambres par défaut × 2 couchages).
         stars = _num(tags.get("stars"))
         if stars is not None:
             chambres = CHAMBRES_DEFAUT_PAR_ETOILE.get(int(stars), CHAMBRES_DEFAUT_HOTEL)
@@ -174,8 +184,8 @@ def estimate_capacity(type_, tags, surface_m2):
                                % (round(surface_m2), SURFACE_PAR_COUCHAGE_M2))
                 else:
                     methode = ("surface parcelle %d m² / %d m² par couchage "
-                               "(terrain : peut inclure des espaces extérieurs — majorant)"
-                               % (round(surface_m2), SURFACE_PAR_COUCHAGE_M2))
+                               "(terrain : peut inclure des espaces extérieurs — %s)"
+                               % (round(surface_m2), SURFACE_PAR_COUCHAGE_M2, MAJORANT_MARKER))
                 return float(cap), "estimee", methode
 
     return ("indisponible : aucune donnée de capacité ni surface exploitable",
@@ -212,6 +222,37 @@ def footprint_m2(geometry):
     return round(area, 1)
 
 
+def surface_of(el):
+    """Emprise au sol (m²) d'un élément Overpass `out geom`, ou chaîne explicative.
+
+    Way -> anneau `geometry`. Relation (multipolygone) -> Σ surfaces des membres `outer`
+    moins Σ des membres `inner` (chaque membre porte sa propre `geometry`). Sinon (node,
+    relation sans membres surfaciques) -> chaîne.
+    """
+    geom = el.get("geometry")
+    if geom:
+        return footprint_m2(geom)
+    if el.get("type") == "relation" and isinstance(el.get("members"), list):
+        outer = inner = 0.0
+        ring_found = False
+        for m in el["members"]:
+            if m.get("type") != "way":
+                continue
+            area = footprint_m2(m.get("geometry"))
+            if not isinstance(area, (int, float)):
+                continue
+            ring_found = True
+            if m.get("role") == "inner":
+                inner += area
+            else:
+                outer += area
+        if ring_found:
+            net = outer - inner
+            return round(net, 1) if net > 0 else \
+                "indisponible : emprise au sol nulle (tracé dégénéré)"
+    return "indisponible : pas de géométrie (élément ponctuel ou non surfacique)"
+
+
 def _point(el):
     """Point représentatif (lat, lon) d'un élément, ou (None, None) si introuvable.
 
@@ -246,7 +287,7 @@ def build_site(loc, el, type_):
     else:
         lat_out = lon_out = "indisponible : position absente de la réponse Overpass"
         distance = "indisponible : position absente, distance non calculable"
-    surface = footprint_m2(el.get("geometry"))
+    surface = surface_of(el)
     capacite, source, methode = estimate_capacity(type_, tags, surface)
     return C.Site(
         osm_id=osm_id,
@@ -288,10 +329,18 @@ def collect_hebergement(loc, args):
                                    else float("-inf")),
                  reverse=True)
 
-    # Agrégats sur TOUS les sites trouvés (le résumé ne dépend pas de --limit).
-    capacite_totale = sum(int(s.capacite) for s, _ in retenus
-                          if isinstance(s.capacite, (int, float)))
-    sans_capacite = sum(1 for s, _ in retenus if not isinstance(s.capacite, (int, float)))
+    # Agrégats sur TOUS les sites trouvés (le résumé ne dépend pas de --limit). On sépare les
+    # majorants parcelle (potentiellement énormes) des capacités fiables pour ne pas gonfler le total.
+    capacite_fiable = capacite_majorant = 0
+    sites_majorant = sans_capacite = 0
+    for s, _ in retenus:
+        if not isinstance(s.capacite, (int, float)):
+            sans_capacite += 1
+        elif MAJORANT_MARKER in s.capacite_methode:
+            capacite_majorant += int(s.capacite)
+            sites_majorant += 1
+        else:
+            capacite_fiable += int(s.capacite)
 
     # --limit borne la LISTE ; limit >= 0 garanti par run() ; limit == 0 -> liste vide.
     sites_out = []
@@ -305,7 +354,9 @@ def collect_hebergement(loc, args):
         sites_total=sum(counts.values()),
         hotels=counts["hôtel"], gymnases=counts["gymnase"],
         ecoles=counts["école"], salles_communales=counts["salle_communale"],
-        capacite_estimee_totale=capacite_totale,
+        capacite_fiable_totale=capacite_fiable,
+        capacite_majorant_parcelles=capacite_majorant,
+        sites_capacite_majorant=sites_majorant,
         sites_sans_capacite=sans_capacite,
     )
     out = jsonable(C.Hebergement(rayon_m=int(args.radius_m), resume=resume, sites=[], note=NOTE))

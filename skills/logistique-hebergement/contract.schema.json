@@ -57,7 +57,8 @@
     "resume": {
       "type": "object",
       "required": ["sites_total", "hotels", "gymnases", "ecoles", "salles_communales",
-                   "capacite_estimee_totale", "sites_sans_capacite"],
+                   "capacite_fiable_totale", "capacite_majorant_parcelles",
+                   "sites_capacite_majorant", "sites_sans_capacite"],
       "additionalProperties": false,
       "properties": {
         "sites_total": { "type": "integer" },
@@ -65,7 +66,9 @@
         "gymnases": { "type": "integer" },
         "ecoles": { "type": "integer" },
         "salles_communales": { "type": "integer" },
-        "capacite_estimee_totale": { "type": "integer" },
+        "capacite_fiable_totale": { "type": "integer" },
+        "capacite_majorant_parcelles": { "type": "integer" },
+        "sites_capacite_majorant": { "type": "integer" },
         "sites_sans_capacite": { "type": "integer" }
       }
     },
