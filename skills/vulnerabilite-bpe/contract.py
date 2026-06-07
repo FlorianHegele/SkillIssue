@@ -39,12 +39,16 @@ class Equipement:
 class CommuneEquipements:
     code: str                         # code commune INSEE (pivot)
     nom: Optional[str]                # libellé commune (via geo.api)
-    ecoles_count: int                 # nombre d'écoles retenues
-    sante_count: int                  # nombre d'établissements de santé retenus
+    ecoles_count: int                 # nombre TOTAL d'écoles trouvées (avant limite --top)
+    sante_count: int                  # nombre TOTAL d'établissements de santé (avant limite --top)
 
 
 @dataclass
 class Vulnerabilite:
     commune: CommuneEquipements
-    ecoles: List[Equipement] = field(default_factory=list)  # trié par distance croissante
-    sante: List[Equipement] = field(default_factory=list)   # trié par distance croissante
+    ecoles: List[Equipement] = field(default_factory=list)  # plus proches d'abord ; ≤ --top
+    sante: List[Equipement] = field(default_factory=list)   # plus proches d'abord ; ≤ --top
+    # Renseigné UNIQUEMENT si une liste a été tronquée par --top : dit explicitement combien
+    # d'équipements existent vs combien sont affichés (jamais de troncature silencieuse). Les
+    # compteurs ci-dessus restent les totaux, donc count > len(liste) signale aussi la coupe.
+    note: Optional[str] = None

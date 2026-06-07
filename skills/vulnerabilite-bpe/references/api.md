@@ -45,9 +45,6 @@ Liste hiérarchisée : `insee.fr/fr/metadonnees/source/fichier/BPE23_liste_hiera
 
 ## 4. Alternatives / compléments (sans clé)
 
-- **FINESS** (santé, référence réglementaire, lat/lon WGS84) :
-  `data.gouv.fr/datasets/finess-extraction-du-fichier-des-etablissements` · `finess.esante.gouv.fr`.
-  Meilleure exhaustivité hôpitaux/cliniques. Géocodage BAN, maj ~2 mois.
 - **Écoles** : annuaire UAI Éducation Nationale (data.gouv, géocodé).
 - **OSM/Overpass** : `amenity=hospital|clinic|school` + `out center` ; extrait hôpitaux OSM :
   `data.gouv.fr/datasets/localisation-des-hopitaux-dans-openstreetmap`. Couverture variable.

@@ -11,7 +11,9 @@ décompressé ; pas une API JSON), qui porte déjà LATITUDE/LONGITUDE WGS84. Vo
 
 Par défaut : écoles (C107/C108/C201/C301/C302) + santé (D106–D113). --all-types élargit aux
 domaines C et D entiers. Filtrage sur la commune (DEPCOM) ; chaque équipement est annoté de sa
-distance au point résolu (tri croissant) ; --radius restreint à un rayon en km.
+distance au point résolu (tri croissant) ; --radius restreint à un rayon en km. Chaque liste est
+limitée aux --top équipements les plus proches (défaut 50, 0 = illimité) pour borner la taille de
+sortie sur les grandes communes ; la coupe n'est JAMAIS silencieuse (compteurs = totaux + `note`).
 
 Mise à jour des données SANS réinstaller le skill : un registre versionné hébergé sur GitHub
 (dataset-registry.json) pointe vers le dernier millésime ; le skill prend le dernier millésime
@@ -69,6 +71,9 @@ def resolve_source(cache_dir, timeout):
 
 
 def select_files(entry, zone_arg, code_insee=None):
+    # NB : `code_insee` ne sert qu'à l'optimisation par `code_prefixes` du socle (essai prioritaire
+    # du fichier couvrant le code). La BPE est NATIONALE (zone unique 'france') -> ce paramètre est
+    # inerte ici ; on le transmet quand même pour rester générique si un futur millésime se découpe.
     return ds.select_files(entry, zone_arg, code_insee)
 
 
@@ -224,9 +229,24 @@ def build_vulnerabilite(loc, args, rows):
     ecoles.sort(key=_key)
     sante.sort(key=_key)
 
+    # Compteurs = totaux retenus (après --radius, AVANT --top) : la borne de sortie ne fausse
+    # jamais le décompte. On garde ensuite les `--top` plus proches par liste pour borner la
+    # taille de réponse sur les grandes communes (--top 0 = illimité).
+    total_ecoles, total_sante = len(ecoles), len(sante)
+    note = None
+    top = args.top
+    if top and top > 0 and (total_ecoles > top or total_sante > top):
+        note = ("listes limitées aux %d équipements les plus proches (--top) : %d écoles et %d "
+                "établissements de santé au total dans le périmètre ; augmentez --top, ou affinez "
+                "avec --radius / --lat / --lon pour un secteur précis."
+                % (top, total_ecoles, total_sante))
+        sys.stderr.write("vulnerabilite-bpe: %s\n" % note)
+        ecoles = ecoles[:top]
+        sante = sante[:top]
+
     commune = C.CommuneEquipements(code=loc.code_insee, nom=loc.commune,
-                                   ecoles_count=len(ecoles), sante_count=len(sante))
-    return jsonable(C.Vulnerabilite(commune=commune, ecoles=ecoles, sante=sante))
+                                   ecoles_count=total_ecoles, sante_count=total_sante)
+    return jsonable(C.Vulnerabilite(commune=commune, ecoles=ecoles, sante=sante, note=note))
 
 
 # --- Orchestration ------------------------------------------------------------
@@ -301,6 +321,11 @@ def build_parser():
                              "entiers, au lieu des seuls écoles + santé ciblés.")
     parser.add_argument("--radius", type=float, default=None,
                         help="Ne garder que les équipements à moins de RADIUS km du point résolu.")
+    parser.add_argument("--top", type=int, default=50,
+                        help="Nombre max d'équipements par liste (écoles / santé), les plus "
+                             "proches d'abord (défaut 50 ; 0 = illimité). La troncature n'est pas "
+                             "silencieuse : les compteurs restent les totaux et un champ `note` "
+                             "indique combien d'équipements existent.")
     parser.add_argument("--cache-dir", dest="cache_dir", default=DEFAULT_CACHE,
                         help="Répertoire de cache des CSV téléchargés (défaut : ./data ou "
                              "$FLOOD_CACHE_DIR).")

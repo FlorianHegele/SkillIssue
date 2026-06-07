@@ -48,14 +48,19 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --lat 44.125 --lon 4.0905
 # Restreindre à un rayon (km) autour du point ; élargir à tous les types des domaines C et D
 python3 ${CLAUDE_SKILL_DIR}/main.py --commune 30007 --radius 2
 python3 ${CLAUDE_SKILL_DIR}/main.py --commune 30007 --all-types
+
+# Grande commune : limiter chaque liste aux 20 plus proches (ou 0 = tout renvoyer)
+python3 ${CLAUDE_SKILL_DIR}/main.py --commune "Montpellier" --top 20
 ```
 
 Par défaut : **écoles** (maternelle, primaire, collège, lycée général/techno, lycée pro) +
 **santé** (urgences, maternité, centre de santé, psychiatrie ambulatoire, médecine préventive,
 dialyse, hospitalisation à domicile, maison de santé). Options : `--all-types` (tous les
 équipements des domaines C *Enseignement* et D *Santé/action sociale*), `--radius` km (filtrer
-autour du point), `--cache-dir` (défaut : `data/` à la racine du repo, ou `$FLOOD_CACHE_DIR`),
-`--refresh` (force le re-téléchargement), `--timeout` s (défaut 120).
+autour du point), `--top` N (max d'équipements par liste, les plus proches d'abord ; défaut 50,
+`0` = illimité — borne la taille de sortie sur les grandes communes), `--cache-dir` (défaut :
+`data/` à la racine du repo, ou `$FLOOD_CACHE_DIR`), `--refresh` (force le re-téléchargement),
+`--timeout` s (défaut 120).
 
 **⚠ 1er appel** : télécharge le fichier-détail BPE national (~165 Mo zippé, **~1,4 Go décompressé
 en cache**) puis le met en **cache** (identifié par le hash de l'URL) ; les appels suivants ne
@@ -73,10 +78,15 @@ version de skill supérieure, il le signale via `dataset.maj_skill_disponible` +
 
 JSON sur stdout : `{ lieu, dataset, vulnerabilite }`.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
-- `vulnerabilite.commune` : `code`, `nom`, `ecoles_count`, `sante_count`.
+- `vulnerabilite.commune` : `code`, `nom`, `ecoles_count`, `sante_count` (totaux trouvés dans le
+  périmètre, **avant** la limite `--top`).
 - `vulnerabilite.ecoles[]` / `vulnerabilite.sante[]` : par équipement `type_code`, `type_libelle`,
   `nom` (NOMRS si renseigné), `lat`, `lon`, `qualite_geoloc`, `distance_km` (trié par distance
-  croissante).
+  croissante ; au plus `--top` éléments par liste).
+- `vulnerabilite.note` : présent **uniquement** si une liste a été tronquée par `--top` — précise
+  combien d'équipements existent au total vs combien sont affichés (troncature jamais silencieuse :
+  `ecoles_count` / `sante_count` restent les totaux, donc un compteur > longueur de liste la signale
+  aussi). Sinon `null`.
 
 > **`distance_km` est mesurée depuis le point résolu.** Avec `--commune`, ce point est le
 > **centroïde** de la commune (via `geo.api`) : pour une grande commune ou une crue localisée, le

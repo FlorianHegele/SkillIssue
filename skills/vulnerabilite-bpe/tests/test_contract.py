@@ -7,7 +7,9 @@ valide la sortie contre contract.schema.json. Aucun réseau. Lançable seul :
 
 Fixture `fixtures/sample_bpe.csv` = vraies lignes BPE 2024 d'Alès (30007) + une de Montpellier
 (34172, doit être filtrée) + des types non ciblés (C109, D101 : inclus seulement via --all-types ;
-A504 : jamais), avec une C108 dont les coordonnées ont été vidées (mesure manquante).
+A504 : jamais), avec une C108 dont les coordonnées ont été vidées (mesure manquante). Plus une
+commune fictive 30258 ne portant QU'un équipement non ciblé (A504) : sert à vérifier le cas
+« commune présente dans la BPE mais sans équipement ciblé » (réponse vide légitime, code 0).
 Décompte attendu — défaut : 6 écoles / 3 santé ; --all-types : 7 écoles / 4 santé.
 """
 
@@ -162,6 +164,42 @@ class ContractTest(unittest.TestCase):
         validate(out, SCHEMA)
         self.assertEqual(code, 0)
         self.assertEqual(out["vulnerabilite"]["commune"]["code"], "30007")
+
+    def test_commune_present_without_targeted_equipment(self):
+        # Commune bien présente dans la BPE (30258) mais ne portant qu'un type non ciblé (A504) :
+        # réponse VALIDE à listes vides, code 0 — surtout pas l'erreur « absente de la BPE ».
+        self._mock_all(loc=Lieu(commune="Saint-Exemple", code_insee="30258",
+                                lat=44.139, lon=4.10))
+        out, code = self._run(["--commune", "30258"])
+        validate(out, SCHEMA)
+        self.assertEqual(code, 0)
+        self.assertNotIn("error", out["vulnerabilite"])
+        com = out["vulnerabilite"]["commune"]
+        self.assertEqual(com["ecoles_count"], 0)
+        self.assertEqual(com["sante_count"], 0)
+        self.assertEqual(out["vulnerabilite"]["ecoles"], [])
+        self.assertEqual(out["vulnerabilite"]["sante"], [])
+        self.assertIsNone(out["vulnerabilite"]["note"])
+
+    def test_top_truncates_lists_without_silent_loss(self):
+        self._mock_all()
+        # Alès a 6 écoles ; --top 2 ne garde que les 2 plus proches mais le compteur reste 6.
+        out, code = self._run(["--commune", "30007", "--top", "2"])
+        validate(out, SCHEMA)
+        self.assertEqual(code, 0)
+        self.assertEqual(out["vulnerabilite"]["commune"]["ecoles_count"], 6)   # total préservé
+        self.assertEqual(len(out["vulnerabilite"]["ecoles"]), 2)               # liste tronquée
+        self.assertIsInstance(out["vulnerabilite"]["note"], str)               # coupe explicite
+        self.assertIn("6", out["vulnerabilite"]["note"])
+        # les 2 retenus sont bien les plus proches (distances triées croissantes)
+        dists = [e["distance_km"] for e in out["vulnerabilite"]["ecoles"]]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_top_zero_means_unlimited(self):
+        self._mock_all()
+        out, _ = self._run(["--commune", "30007", "--top", "0"])
+        self.assertEqual(len(out["vulnerabilite"]["ecoles"]), 6)
+        self.assertIsNone(out["vulnerabilite"]["note"])
 
     def test_commune_absent_from_bpe_returns_error_variant(self):
         self._mock_all(loc=Lieu(commune="Nulle part", code_insee="99999", lat=1.0, lon=1.0))

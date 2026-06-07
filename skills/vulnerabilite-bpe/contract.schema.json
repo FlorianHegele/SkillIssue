@@ -78,7 +78,8 @@
       "properties": {
         "commune": { "$ref": "#/$defs/commune" },
         "ecoles": { "type": "array", "items": { "$ref": "#/$defs/equipement" } },
-        "sante": { "type": "array", "items": { "$ref": "#/$defs/equipement" } }
+        "sante": { "type": "array", "items": { "$ref": "#/$defs/equipement" } },
+        "note": { "type": ["string", "null"] }
       }
     }
   }
