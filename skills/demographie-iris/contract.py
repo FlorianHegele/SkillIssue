@@ -37,7 +37,7 @@ class CommuneSynthese:
     # monoparentales sont chiffrées (sinon on mélangerait des périmètres). Exposée pour lever
     # l'ambiguïté avec monoparentales_total (somme complète) : ici part_monoparentales_pct =
     # base.monoparentales / base.familles. Dict {monoparentales, familles} OU chaîne explicative.
-    part_monoparentales_base: Union[dict, str] = None
+    part_monoparentales_base: Union[dict, str] = "indisponible : base non calculée"
 
 
 @dataclass

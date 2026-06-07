@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+import traceback
 
 # Le dossier parent `skills/` doit être sur sys.path pour importer le paquet _common.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -250,7 +251,11 @@ def run(args):
         out["demographie"] = {"error": exc.message, "detail": exc.detail}
         erreurs += 1
     except Exception as exc:  # robustesse : une source ne doit pas tout casser
-        out["demographie"] = {"error": "erreur inattendue : %s" % exc}
+        # Bug réel (≠ source en panne) : on dégrade quand même la sortie, mais on trace sur
+        # stderr (traceback compris) pour le débogage — sinon l'erreur resterait invisible.
+        traceback.print_exc(file=sys.stderr)
+        out["demographie"] = {"error": "erreur inattendue : %s: %s"
+                                       % (type(exc).__name__, exc)}
         erreurs += 1
 
     return out, (1 if erreurs else 0)
