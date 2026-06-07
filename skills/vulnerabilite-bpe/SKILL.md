@@ -54,8 +54,8 @@ Par défaut : **écoles** (maternelle, primaire, collège, lycée général/tech
 **santé** (urgences, maternité, centre de santé, psychiatrie ambulatoire, médecine préventive,
 dialyse, hospitalisation à domicile, maison de santé). Options : `--all-types` (tous les
 équipements des domaines C *Enseignement* et D *Santé/action sociale*), `--radius` km (filtrer
-autour du point), `--cache-dir` (défaut `./data` ou `$FLOOD_CACHE_DIR`), `--refresh` (force le
-re-téléchargement), `--timeout` s (défaut 120).
+autour du point), `--cache-dir` (défaut : `data/` à la racine du repo, ou `$FLOOD_CACHE_DIR`),
+`--refresh` (force le re-téléchargement), `--timeout` s (défaut 120).
 
 **⚠ 1er appel** : télécharge le fichier-détail BPE national (~165 Mo zippé, **~1,4 Go décompressé
 en cache**) puis le met en **cache** (identifié par le hash de l'URL) ; les appels suivants ne
@@ -80,8 +80,12 @@ JSON sur stdout : `{ lieu, dataset, vulnerabilite }`.
 
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `"indisponible : coordonnées de l'équipement absentes"`) — jamais un `null` ambigu ; vérifier le
-type avant tout calcul. Une commune introuvable / hors France renvoie une erreur (stderr + code
-≠ 0) ; une commune sans équipement ciblé renvoie des listes vides (réponse valide, code 0).
+type avant tout calcul. Trois cas distincts en sortie :
+- commune **introuvable / hors France** (géocodage échoué) → erreur (JSON sur stderr + code ≠ 0) ;
+- commune valide **présente dans la BPE mais sans équipement ciblé** → listes vides (réponse
+  valide, code 0) ;
+- commune valide **mais absente du fichier-détail BPE** → bloc `vulnerabilite.error` dans le JSON
+  stdout + code retour ≠ 0 (la sortie reste un JSON exploitable).
 
 Contrat de sortie (défini en amont) : `contract.py` (dataclasses typées) + `contract.schema.json`
 (validé hors-ligne par `tests/test_contract.py`). Infra commune : `skills/_common/`.
