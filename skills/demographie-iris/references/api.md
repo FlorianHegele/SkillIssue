@@ -58,8 +58,9 @@ Forme effective (voir `contract.schema.json`, source de vérité) :
             depuis_cache, registre_source, registry_version, maj_skill_disponible, message},
   demographie: {
     commune: {code, nom, population, iris_count, menages_total, familles_total,
-              monoparentales_total, part_monoparentales_pct},
-    iris: [{code, libelle, population, menages, familles, monoparentales}]   // trié pop. décroissante
+              monoparentales_total, part_monoparentales_pct, part_monoparentales_base},
+    iris: [{code, libelle, population, menages, familles, monoparentales}],  // trié pop. décroissante
+    iris_tronque                                                             // true si liste limitée (--top)
   }
 }
 ```
@@ -70,7 +71,12 @@ Notes :
   Le `libelle` IRIS est donc une chaîne « indisponible » sur ce millésime.
 - `part_monoparentales_pct` est calculé **uniquement sur les IRIS où familles ET monoparentales
   sont numériques** (cohérence du ratio en présence de secret statistique) ; `monoparentales_total`,
-  lui, est la somme complète.
+  lui, est la somme complète. Pour lever l'ambiguïté, `part_monoparentales_base`
+  (`{monoparentales, familles}`) expose le numérateur/dénominateur **réellement** utilisés :
+  `pct = base.monoparentales / base.familles`, qui peut donc différer de `monoparentales_total`.
+- `iris[]` est limité par défaut aux **20 IRIS les plus peuplés** (`--top N`, `--top 0` = tout) pour
+  économiser le contexte sur les grandes communes ; `iris_tronque` signale la limitation et les
+  totaux `commune.*` restent calculés sur **tous** les IRIS (pas seulement ceux listés).
 - **Couverture géographique non codée en dur** : le registre (`dataset-registry.json`) déclare une
   liste de `files` (un par zone, ex. métropole, com) ; en `--zone auto` le skill les essaie tous
   jusqu'à trouver la commune. Aucune hypothèse département→fichier en Python → ajouter une zone

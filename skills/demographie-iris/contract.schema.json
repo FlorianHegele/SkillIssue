@@ -49,7 +49,8 @@
     "commune": {
       "type": "object",
       "required": ["code", "nom", "population", "iris_count", "menages_total",
-                   "familles_total", "monoparentales_total", "part_monoparentales_pct"],
+                   "familles_total", "monoparentales_total", "part_monoparentales_pct",
+                   "part_monoparentales_base"],
       "additionalProperties": false,
       "properties": {
         "code": { "type": "string" },
@@ -59,7 +60,16 @@
         "menages_total": { "type": ["number", "string"] },
         "familles_total": { "type": ["number", "string"] },
         "monoparentales_total": { "type": ["number", "string"] },
-        "part_monoparentales_pct": { "type": ["number", "string"] }
+        "part_monoparentales_pct": { "type": ["number", "string"] },
+        "part_monoparentales_base": {
+          "oneOf": [
+            { "type": "object", "required": ["monoparentales", "familles"],
+              "additionalProperties": false,
+              "properties": { "monoparentales": { "type": "number" },
+                              "familles": { "type": "number" } } },
+            { "type": "string" }
+          ]
+        }
       }
     },
     "iris_item": {
@@ -80,11 +90,12 @@
     },
     "demographie": {
       "type": "object",
-      "required": ["commune", "iris"],
+      "required": ["commune", "iris", "iris_tronque"],
       "additionalProperties": false,
       "properties": {
         "commune": { "$ref": "#/$defs/commune" },
-        "iris": { "type": "array", "items": { "$ref": "#/$defs/iris_item" } }
+        "iris": { "type": "array", "items": { "$ref": "#/$defs/iris_item" } },
+        "iris_tronque": { "type": "boolean" }
       }
     }
   }

@@ -31,8 +31,13 @@ class CommuneSynthese:
     iris_count: int                    # nombre d'IRIS trouvés pour la commune dans le CSV
     menages_total: Mesure              # somme des ménages sur les IRIS (unités à héberger)
     familles_total: Mesure             # somme des familles
-    monoparentales_total: Mesure       # somme des familles monoparentales
+    monoparentales_total: Mesure       # somme des familles monoparentales (TOUS les IRIS chiffrés)
     part_monoparentales_pct: Mesure    # % monoparentales / familles (indicateur de vulnérabilité)
+    # Base RÉELLEMENT utilisée pour le pourcentage : uniquement les IRIS où familles ET
+    # monoparentales sont chiffrées (sinon on mélangerait des périmètres). Exposée pour lever
+    # l'ambiguïté avec monoparentales_total (somme complète) : ici part_monoparentales_pct =
+    # base.monoparentales / base.familles. Dict {monoparentales, familles} OU chaîne explicative.
+    part_monoparentales_base: Union[dict, str] = None
 
 
 @dataclass
@@ -52,3 +57,7 @@ class IrisItem:
 class Demographie:
     commune: CommuneSynthese
     iris: List[IrisItem] = field(default_factory=list)  # trié par population décroissante
+    # Liste IRIS limitée au top-N (par population) pour économiser le contexte : si True, des IRIS
+    # ont été omis (commune.iris_count = total trouvé > len(iris)). Les totaux commune restent
+    # calculés sur TOUS les IRIS. --top 0 renvoie la liste complète. Jamais de troncature silencieuse.
+    iris_tronque: bool = False

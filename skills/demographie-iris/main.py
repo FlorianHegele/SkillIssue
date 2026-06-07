@@ -175,11 +175,23 @@ def build_demographie(loc, args, rows, prefix, zone):
         key=lambda it: it.population if isinstance(it.population, (int, float)) else -1,
         reverse=True)
 
+    # Troncature top-N (économie de contexte sur les grandes communes : Paris ≈ 1 000 IRIS).
+    # Les totaux ci-dessus sont calculés sur TOUS les IRIS, indépendamment de la troncature.
+    total_iris = len(iris_items)
+    top = getattr(args, "top", 0) or 0
+    shown = iris_items[:top] if top > 0 else iris_items
+    tronque = len(shown) < total_iris
+
+    # Base réellement utilisée pour le pourcentage (IRIS où familles ET monoparentales chiffrées),
+    # exposée pour lever l'ambiguïté avec monoparentales_total (somme complète, tous IRIS).
+    base = ({"monoparentales": round(pair_mono), "familles": round(pair_fam)} if has_pair
+            else "indisponible : familles/monoparentales non exploitables")
+
     commune = C.CommuneSynthese(
         code=loc.code_insee,
         nom=loc.commune,
         population=collect_population(loc, args.timeout),
-        iris_count=len(iris_items),
+        iris_count=total_iris,
         menages_total=(round(tot_men) if has_men
                        else "indisponible : aucune valeur ménages exploitable"),
         familles_total=(round(tot_fam) if has_fam
@@ -188,9 +200,10 @@ def build_demographie(loc, args, rows, prefix, zone):
                               else "indisponible : aucune valeur monoparentales exploitable"),
         part_monoparentales_pct=(_pct(pair_mono, pair_fam) if has_pair
                                  else "indisponible : familles/monoparentales non exploitables"),
+        part_monoparentales_base=base,
     )
 
-    out = jsonable(C.Demographie(commune=commune, iris=iris_items))
+    out = jsonable(C.Demographie(commune=commune, iris=shown, iris_tronque=tronque))
     if not args.detail:  # champs réservés à --detail : on ne les expose pas par défaut
         for it in out["iris"]:
             for k in ("type_iris", "couples_avec_enfants", "couples_sans_enfants"):
@@ -261,6 +274,10 @@ def build_parser():
                         help="Forcer le re-téléchargement même si le CSV est déjà en cache.")
     parser.add_argument("--detail", action="store_true",
                         help="Ajouter par IRIS : couples avec/sans enfants et type d'IRIS.")
+    parser.add_argument("--top", type=int, default=20,
+                        help="Limiter la liste IRIS aux N plus peuplés (économie de contexte sur "
+                             "les grandes communes). Les totaux commune restent calculés sur tous "
+                             "les IRIS. Défaut 20 ; --top 0 renvoie la liste complète.")
     parser.add_argument("--timeout", type=float, default=60.0,
                         help="Timeout HTTP en secondes (téléchargements ~20 Mo). Défaut 60.")
     return parser

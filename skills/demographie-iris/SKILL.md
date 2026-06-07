@@ -44,8 +44,10 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --commune 97501 --zone com
 
 Options : `--zone` (défaut `auto` : essaie tous les fichiers déclarés par le registre jusqu'à
 trouver la commune ; ou une zone précise, ex. `metropole`/`com`), `--detail` (ajoute par IRIS :
-couples avec/sans enfants, type d'IRIS), `--cache-dir` (répertoire de cache, défaut `./data` ou
-`$FLOOD_CACHE_DIR`), `--refresh` (force le re-téléchargement), `--timeout` s (défaut 60).
+couples avec/sans enfants, type d'IRIS), `--top N` (limite la liste IRIS aux N plus peuplés,
+défaut 20, `--top 0` = liste complète ; les totaux commune restent calculés sur **tous** les IRIS),
+`--cache-dir` (répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`), `--refresh` (force le
+re-téléchargement), `--timeout` s (défaut 60).
 
 **1er appel** : télécharge le CSV INSEE (~20 Mo zippé pour la métropole) puis le met en **cache**
 (identifié par le hash de l'URL) ; les appels suivants ne re-téléchargent pas. La couverture
@@ -69,10 +71,15 @@ demandant de mettre à jour le repo du skill.
 
 JSON sur stdout : `{ lieu, dataset, demographie }`.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
-- `demographie.commune` : `population`, `menages_total`, `familles_total`, `monoparentales_total`,
-  `part_monoparentales_pct` (indicateur de vulnérabilité), `iris_count`.
+- `demographie.commune` : `population`, `menages_total`, `familles_total`, `monoparentales_total`
+  (somme **complète**), `part_monoparentales_pct` (indicateur de vulnérabilité) +
+  `part_monoparentales_base` (`{monoparentales, familles}` réellement utilisés pour ce % — seuls
+  les IRIS où les deux sont chiffrées, donc `pct = base.monoparentales / base.familles`, ce qui
+  peut différer de `monoparentales_total`), `iris_count` (total d'IRIS trouvés).
 - `demographie.iris[]` : par quartier `code, libelle, population, menages, familles,
-  monoparentales` (trié par population décroissante).
+  monoparentales` (trié par population décroissante, limité au top-N via `--top`).
+- `demographie.iris_tronque` : `true` si la liste a été limitée (`iris_count` > `len(iris)`) ;
+  jamais de troncature silencieuse.
 
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `"indisponible : donnée soumise au secret statistique"`) — jamais un `null` ambigu ; vérifier le

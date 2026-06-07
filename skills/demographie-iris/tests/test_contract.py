@@ -91,6 +91,32 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(out["dataset"]["zone"], "metropole")
         self.assertEqual(out["dataset"]["millesime"], 2022)
 
+    def test_top_limits_iris_without_skewing_totals(self):
+        self._mock_all()
+        # --top 2 : seuls les 2 IRIS les plus peuplés sont listés, mais les totaux restent
+        # calculés sur les 4 IRIS de la commune (la troncature ne fausse pas la synthèse).
+        out, code = self._run(["--commune", "30007", "--top", "2"])
+        validate(out, SCHEMA)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(out["demographie"]["iris"]), 2)
+        self.assertTrue(out["demographie"]["iris_tronque"])
+        self.assertEqual(out["demographie"]["commune"]["iris_count"], 4)   # total inchangé
+        self.assertEqual(out["demographie"]["commune"]["menages_total"], 2820)
+        # --top 0 : liste complète, pas de troncature.
+        out_all, _ = self._run(["--commune", "30007", "--top", "0"])
+        self.assertEqual(len(out_all["demographie"]["iris"]), 4)
+        self.assertFalse(out_all["demographie"]["iris_tronque"])
+
+    def test_part_monoparentales_base_matches_pct(self):
+        self._mock_all()
+        out, _ = self._run(["--commune", "30007"])
+        com = out["demographie"]["commune"]
+        # La base expose le numérateur/dénominateur RÉELLEMENT utilisés (IRIS où familles ET
+        # monoparentales chiffrées) : 295/1570 = 18.8 %, distinct de monoparentales_total (350).
+        self.assertEqual(com["part_monoparentales_base"], {"monoparentales": 295, "familles": 1570})
+        self.assertEqual(com["monoparentales_total"], 350)
+        self.assertEqual(round(100.0 * 295 / 1570, 1), com["part_monoparentales_pct"])
+
     def test_com_filter_excludes_other_communes(self):
         self._mock_all()
         out, _ = self._run(["--commune", "30007"])
