@@ -38,21 +38,27 @@
         "troncon": { "type": ["string", "null"] }
       }
     },
+    "station_hydro": {
+      "type": "object",
+      "required": ["station", "distance_km"],
+      "additionalProperties": false,
+      "properties": {
+        "station": { "type": "string" },
+        "distance_km": { "type": "number" },
+        "nom": { "type": ["string", "null"] },
+        "hauteur_mm": { "type": ["number", "string"] },
+        "debit_ls": { "type": ["number", "string"] },
+        "date_hauteur": { "type": ["string", "null"] },
+        "date_debit": { "type": ["string", "null"] }
+      }
+    },
     "hydro": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["station", "distance_km"],
-        "additionalProperties": false,
-        "properties": {
-          "station": { "type": "string" },
-          "distance_km": { "type": "number" },
-          "nom": { "type": ["string", "null"] },
-          "hauteur_mm": { "type": ["number", "string"] },
-          "debit_ls": { "type": ["number", "string"] },
-          "date_hauteur": { "type": ["string", "null"] },
-          "date_debit": { "type": ["string", "null"] }
-        }
+      "type": "object",
+      "required": ["stations", "stations_dans_rayon"],
+      "additionalProperties": false,
+      "properties": {
+        "stations": { "type": "array", "items": { "$ref": "#/$defs/station_hydro" } },
+        "stations_dans_rayon": { "type": "integer" }
       }
     },
     "heure_pluie": {

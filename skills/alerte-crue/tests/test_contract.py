@@ -47,7 +47,7 @@ def _openmeteo_now(rain=True, hours=48):
 
 
 def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
-                    vigicrues_doc=None, meteo_hours=48):
+                    empty_all=False, vigicrues_doc=None, meteo_hours=48):
     def fake_http(url, params=None, timeout=20, retries=3):
         if "vigicrues" in url:
             if fail_vigicrues:
@@ -56,6 +56,8 @@ def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
         if "referentiel/stations" in url:
             return _load("hubeau_stations.json")
         if "observations_tr" in url:
+            if empty_all:
+                return {"count": 0, "data": []}  # aucune mesure (H ni Q) sur la station
             if empty_debit and params["grandeur_hydro"] == "Q":
                 return {"count": 0, "data": []}  # station sans débit temps réel
             return _load("hubeau_obs_%s.json" % params["grandeur_hydro"])
@@ -82,7 +84,8 @@ class ContractTest(unittest.TestCase):
         validate(out, SCHEMA)  # lève si non conforme
         self.assertEqual(code, 0)
         self.assertEqual(out["vigilance"]["couleur"], "jaune")  # NivInfViCr=2
-        self.assertEqual(out["hydro"][0]["station"], "V715501001")
+        self.assertEqual(out["hydro"]["stations"][0]["station"], "V715501001")
+        self.assertGreaterEqual(out["hydro"]["stations_dans_rayon"], 1)
         self.assertEqual(out["pluie"]["pic"]["precipitation_mm"], 3.6)
         self.assertEqual(len(out["pluie"]["heures_pluvieuses"]), 2)  # 0.7 et 3.6 >= 0.5
         # 0.7 et 3.6 sont sur deux heures consécutives -> un seul créneau (cumul 4.3)
@@ -107,7 +110,7 @@ class ContractTest(unittest.TestCase):
         main.http_get_json = _make_fake_http(empty_debit=True)
         out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "hydro"])
         validate(out, SCHEMA)                       # number-or-string reste conforme
-        st = out["hydro"][0]
+        st = out["hydro"]["stations"][0]
         self.assertIsInstance(st["hauteur_mm"], float)        # mesure OK : nombre
         self.assertIsInstance(st["debit_ls"], str)            # absente : chaîne
         self.assertIn("indisponible", st["debit_ls"])
@@ -161,6 +164,46 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(cr[0]["fin"], times[2])
         self.assertEqual(cr[1]["cumul_mm"], 3.0)   # épisode d'une seule heure
         self.assertEqual(cr[1]["debut"], cr[1]["fin"])
+
+    def test_station_without_any_measure_is_dropped(self):
+        # Station sans AUCUNE mesure numérique (H et Q vides) -> écartée. Plus aucune station
+        # exploitable -> la source hydro renvoie {error}, code retour != 0 (seule source).
+        main.http_get_json = _make_fake_http(empty_all=True)
+        out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "hydro"])
+        validate(out, SCHEMA)
+        self.assertIn("error", out["hydro"])
+        self.assertEqual(code, 1)
+
+    def test_max_stations_caps_and_reports_total(self):
+        # 2 stations dans le rayon, --max-stations 1 -> une seule retournée, mais
+        # stations_dans_rayon=2 révèle le plafonnement (pas de tri silencieux).
+        main.http_get_json = _make_fake_http()
+        out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "hydro",
+                               "--max-stations", "1"])
+        validate(out, SCHEMA)
+        self.assertEqual(len(out["hydro"]["stations"]), 1)
+        self.assertEqual(out["hydro"]["stations_dans_rayon"], 2)
+        self.assertEqual(code, 0)
+
+    def test_only_deduplicates_sources(self):
+        # --only répété ne doit déclencher qu'UN appel par source (pas de double exécution).
+        main.http_get_json = _make_fake_http()
+        calls = {"n": 0}
+        orig = main.collect_vigilance
+
+        def counting(*a, **k):
+            calls["n"] += 1
+            return orig(*a, **k)
+
+        main.collect_vigilance = counting
+        try:
+            out, code = self._run(["--lat", "44.12", "--lon", "4.08",
+                                   "--only", "vigilance", "--only", "vigilance"])
+        finally:
+            main.collect_vigilance = orig
+        validate(out, SCHEMA)
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(code, 0)
 
     def test_error_variant_conforms(self):
         main.http_get_json = _make_fake_http(fail_vigicrues=True)

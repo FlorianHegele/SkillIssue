@@ -43,6 +43,12 @@ OPENMETEO = "https://api.open-meteo.com/v1/forecast"
 
 VIGILANCE_COULEURS = {1: "vert", 2: "jaune", 3: "orange", 4: "rouge"}
 SEUIL_PLUIE_MM = 0.5  # mm/h en deçà desquels une heure est "sèche" (bruit, écartée)
+# Modèle OpenMeteo par défaut. AROME France HD (~1,5 km) ne couvre QUE la métropole :
+# hors emprise, OpenMeteo répond HTTP 400 {"reason": "No data is available for this location"}
+# (vérifié live le 07/06/2026). Pour les DOM, passer --modele meteofrance_seamless (modèle
+# global, couvre la Réunion/Antilles/etc.). On reflète toujours le modèle DEMANDÉ dans la
+# sortie : OpenMeteo n'écho­te pas le modèle réellement servi pour une requête mono-modèle.
+AROME_HD = "meteofrance_arome_france_hd"
 # OpenMeteo est interrogé avec timezone=Europe/Paris : ses horodatages horaires sont donc
 # en heure locale de Paris (naïfs). On ancre « maintenant » sur CETTE zone, sans dépendre du
 # fuseau de la machine (un serveur en UTC décalerait sinon la fenêtre des 24 h).
@@ -152,28 +158,40 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
     if not results:
         return {"error": "aucune station Hub'Eau avec donnée temps réel "
                          "dans un rayon de %s km" % radius_km}
-    return results
+    # On expose le nombre total de stations DANS LE RAYON (pas seulement les `max_stations`
+    # retournées) : un écart révèle le plafonnement ou les stations écartées faute de mesure,
+    # plutôt qu'un tri silencieux. Augmenter --max-stations / --radius pour en voir plus.
+    return C.BlocHydro(stations=results, stations_dans_rayon=len(stations))
 
 
 # --- Adaptateur : prévision pluie OpenMeteo ----------------------------------
-def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
+def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME_HD):
     """Pluie 24 h optimisée pour la décision : on ne garde que les heures pluvieuses
     (>= seuil) + un résumé (cumul, pic, créneau). --detail réexpose la série complète."""
-    data = http_get_json(
-        OPENMETEO,
-        params={"latitude": loc.lat, "longitude": loc.lon,
-                "hourly": "precipitation",
-                "models": "meteofrance_arome_france_hd",
-                "timezone": "Europe/Paris", "forecast_days": 2},
-        timeout=timeout,
-    )
+    try:
+        data = http_get_json(
+            OPENMETEO,
+            params={"latitude": loc.lat, "longitude": loc.lon,
+                    "hourly": "precipitation",
+                    "models": modele,
+                    "timezone": "Europe/Paris", "forecast_days": 2},
+            timeout=timeout,
+        )
+    except SkillError as exc:
+        # Hors emprise du modèle, OpenMeteo répond 400 + {"reason": "No data ..."} : on relaie
+        # la cause réelle (portée par exc.detail) + une piste d'action, plutôt qu'un "HTTP 400"
+        # opaque ou — pire — de faux 0 mm. AROME France HD ne couvre que la métropole.
+        return {"error": "prévision pluie indisponible (modèle %s) : %s"
+                         % (modele, exc.detail or exc.message),
+                "indice": "hors métropole, AROME France HD ne couvre pas le point ; "
+                          "réessayer avec --modele meteofrance_seamless"}
     hourly = data.get("hourly", {})
     times = hourly.get("time", [])
     precip = hourly.get("precipitation", [])
     now = datetime.now(PARIS_TZ)
     cur_hour = now.replace(minute=0, second=0, microsecond=0)
 
-    fenetre = []  # (heure_iso, mm) des 24 prochaines heures
+    fenetre = []  # (heure_iso, mm | None) ; None = valeur non fournie (trou de couverture)
     for t, p in zip(times, precip):
         try:
             dt = datetime.fromisoformat(t)
@@ -185,26 +203,34 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
             continue
         if len(fenetre) >= 24:
             break
-        fenetre.append((t, round(p or 0.0, 1)))
+        # Une valeur null (modèle muet sur cette heure) reste None : on ne la maquille PAS en 0.0.
+        fenetre.append((t, round(p, 1) if isinstance(p, (int, float)) else None))
 
-    # forecast_days=2 garantit normalement >= 24 h futures ; si l'API en renvoie moins,
-    # on ne ment pas sur le nom du champ : cumul devient une chaîne explicative.
-    if len(fenetre) >= 24:
-        cumul = round(sum(v for _, v in fenetre), 1)
+    dispo = [(t, v) for t, v in fenetre if v is not None]
+    # Réponse 200 mais aucune valeur exploitable -> on le dit (jamais un faux total à 0).
+    if fenetre and not dispo:
+        return {"error": "prévision pluie indisponible : le modèle %s n'a renvoyé aucune "
+                         "valeur exploitable pour ce point" % modele}
+
+    # forecast_days=2 garantit normalement >= 24 h futures ; si l'API en renvoie moins (ou des
+    # trous), on ne ment pas sur le nom du champ : cumul devient une chaîne explicative.
+    if len(dispo) >= 24:
+        cumul = round(sum(v for _, v in dispo), 1)
     else:
-        cumul = ("indisponible : prévision limitée à %d h (< 24) renvoyée par l'API"
-                 % len(fenetre))
-    pluvieuses = [C.HeurePluie(heure=t, precipitation_mm=v) for t, v in fenetre if v >= seuil]
-    pic_raw = max(fenetre, key=lambda x: x[1], default=None)
+        cumul = ("indisponible : prévision exploitable limitée à %d h (< 24) — fenêtre "
+                 "tronquée ou trous du modèle %s" % (len(dispo), modele))
+    pluvieuses = [C.HeurePluie(heure=t, precipitation_mm=v) for t, v in fenetre
+                  if v is not None and v >= seuil]
+    pic_raw = max(dispo, key=lambda x: x[1], default=None)
     pic = (C.Pic(heure=pic_raw[0], precipitation_mm=pic_raw[1])
            if pic_raw and pic_raw[1] >= seuil else None)
 
-    # Découpe la fenêtre en épisodes pluvieux CONTIGUS : une heure sèche (< seuil) clôt le
-    # créneau courant. On expose ainsi chaque épisode réel plutôt qu'un début/fin global qui
-    # masquerait les accalmies.
+    # Découpe la fenêtre en épisodes pluvieux CONTIGUS : une heure sèche (< seuil) OU un trou
+    # (None) clôt le créneau courant. On expose ainsi chaque épisode réel plutôt qu'un
+    # début/fin global qui masquerait les accalmies.
     creneaux, seg = [], None
     for t, v in fenetre:
-        if v >= seuil:
+        if v is not None and v >= seuil:
             if seg is None:
                 seg = {"debut": t, "fin": t, "cumul": v}
             else:
@@ -221,13 +247,15 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
         cumul_prochaines_24h_mm=cumul,
         seuil_mm=seuil,
         heures_pluvieuses=pluvieuses,
+        modele=modele,
         unite=data.get("hourly_units", {}).get("precipitation", "mm"),
         pic=pic,
         creneaux=creneaux,
     )
     if detail:
         out = jsonable(pluie)
-        out["par_heure"] = [{"heure": t, "precipitation_mm": v} for t, v in fenetre]
+        out["par_heure"] = [{"heure": t, "precipitation_mm": v} for t, v in fenetre
+                            if v is not None]
         return out
     return pluie
 
@@ -235,15 +263,18 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM):
 # --- Orchestration ------------------------------------------------------------
 COLLECTEURS = {
     "vigilance": lambda loc, a: collect_vigilance(loc, a.radius, a.timeout),
-    "hydro": lambda loc, a: collect_hydro(loc, a.radius, a.timeout),
-    "pluie": lambda loc, a: collect_pluie(loc, a.timeout,
-                                          detail=a.detail, seuil=a.seuil_pluie),
+    "hydro": lambda loc, a: collect_hydro(loc, a.radius, a.timeout,
+                                          max_stations=a.max_stations),
+    "pluie": lambda loc, a: collect_pluie(loc, a.timeout, detail=a.detail,
+                                          seuil=a.seuil_pluie, modele=a.modele),
 }
 
 
 def run(args):
     loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
-    sources = args.only or list(COLLECTEURS.keys())
+    # Dédup en gardant l'ordre : --only répété ne doit pas relancer une source ni fausser
+    # le compte d'erreurs (qui pilote le code retour).
+    sources = list(dict.fromkeys(args.only or list(COLLECTEURS.keys())))
     out = {"lieu": jsonable(loc)}
     erreurs = 0
     for name in sources:
@@ -275,6 +306,12 @@ def build_parser():
                              "ou répété). Défaut : toutes.")
     parser.add_argument("--radius", type=float, default=15.0,
                         help="Rayon de recherche en km (Vigicrues/Hub'Eau). Défaut 15.")
+    parser.add_argument("--max-stations", dest="max_stations", type=int, default=4,
+                        help="Hydro : nombre max de stations retournées (les plus proches). "
+                             "Défaut 4 ; stations_dans_rayon indique le total trouvé.")
+    parser.add_argument("--modele", default=AROME_HD,
+                        help="Pluie : modèle OpenMeteo. Défaut %(default)s (métropole "
+                             "uniquement) ; hors métropole utiliser meteofrance_seamless.")
     parser.add_argument("--timeout", type=float, default=20.0,
                         help="Timeout HTTP en secondes. Défaut 20.")
     parser.add_argument("--detail", action="store_true",

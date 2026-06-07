@@ -36,6 +36,18 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
             ctype = resp.headers.get("Content-Type", "")
             if resp.status_code not in _OK_STATUS:
                 last_err = "HTTP %s" % resp.status_code
+                # Beaucoup d'API (OpenMeteo, geo.api...) décrivent la cause dans un corps JSON
+                # sur un 4xx (ex. {"reason": "No data is available for this location"}). On la
+                # joint au detail plutôt que de la jeter : un "HTTP 400" seul n'est pas actionnable.
+                if "json" in ctype.lower():
+                    try:
+                        body = resp.json()
+                        reason = (body.get("reason") or body.get("message")
+                                  or body.get("error_message")) if isinstance(body, dict) else None
+                        if reason:
+                            last_err += " — %s" % reason
+                    except ValueError:
+                        pass
             elif require_json and "json" not in ctype.lower():
                 last_err = "réponse non-JSON (Content-Type: %s)" % (ctype or "inconnu")
             else:

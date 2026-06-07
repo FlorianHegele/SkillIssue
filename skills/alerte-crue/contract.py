@@ -40,6 +40,15 @@ class StationHydro:
 
 
 @dataclass
+class BlocHydro:
+    """Bloc hydrométrie : les stations retenues + le nombre total de stations trouvées dans
+    le rayon. `stations_dans_rayon` > len(stations) signale un plafonnement (--max-stations)
+    ou des stations écartées faute de mesure temps réel : on ne masque pas le tri silencieux."""
+    stations: List[StationHydro]
+    stations_dans_rayon: int
+
+
+@dataclass
 class HeurePluie:
     heure: str                       # ISO 8601 local
     precipitation_mm: float

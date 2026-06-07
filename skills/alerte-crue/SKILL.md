@@ -41,20 +41,28 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --commune "Alès" --only vigilance --only hy
 ```
 
 Options : `--only {vigilance,hydro,pluie}` (défaut : les trois), `--radius` km (défaut 15),
-`--timeout` s (défaut 20), `--detail` (pluie : ajoute la série horaire complète 24 h),
-`--seuil-pluie` mm/h (pluie : seuil d'une heure « pluvieuse », défaut 0.5).
+`--max-stations` (hydro : nb max de stations retournées, défaut 4), `--modele` (pluie : modèle
+OpenMeteo, défaut `meteofrance_arome_france_hd` — **métropole uniquement** ; hors métropole / DOM
+utiliser `meteofrance_seamless`), `--timeout` s (défaut 20), `--detail` (pluie : ajoute la série
+horaire complète 24 h), `--seuil-pluie` mm/h (pluie : seuil d'une heure « pluvieuse », défaut 0.5).
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, vigilance, hydro[], pluie }` (hauteurs en mm, débits en l/s, pluie en
+JSON sur stdout : `{ lieu, vigilance, hydro, pluie }` (hauteurs en mm, débits en l/s, pluie en
 mm). Reformuler ensuite en langage naturel pour l'utilisateur. Une source en échec apparaît avec
 un champ `error` sans bloquer les autres ; une localisation manquante/introuvable renvoie une
 erreur sur stderr avec un code retour ≠ 0.
 
-**Hydro** : une mesure (`hauteur_mm`, `debit_ls`) vaut soit un nombre, soit une **chaîne
-explicative** si elle manque (ex. `"indisponible : pas de mesure temps réel récente"`,
-`"erreur : …"`) — jamais `null` ambigu. Une station n'est listée que si elle porte au moins
-une vraie mesure.
+**Hydro** : objet `{ stations[], stations_dans_rayon }`. Une mesure (`hauteur_mm`, `debit_ls`)
+vaut soit un nombre, soit une **chaîne explicative** si elle manque (ex. `"indisponible : pas de
+mesure temps réel récente"`, `"erreur : …"`) — jamais `null` ambigu. Une station n'est listée que
+si elle porte au moins une vraie mesure. `stations_dans_rayon` donne le nombre total de stations
+trouvées dans le rayon : s'il dépasse la taille de `stations[]`, c'est qu'il y a eu plafonnement
+(`--max-stations`) ou des stations écartées faute de mesure — jamais un tri silencieux.
+
+**Pluie** : `modele` reflète le modèle OpenMeteo **demandé**. Hors emprise du modèle (AROME HD =
+métropole), la source renvoie `{error, indice}` invitant à réessayer avec `--modele
+meteofrance_seamless` — jamais de faux `0 mm`.
 
 **Pluie** (optimisée pour la décision) : `cumul_prochaines_24h_mm`, `pic` (heure + intensité la
 plus forte), `creneaux[]` (chaque épisode pluvieux contigu : `debut`/`fin`/`cumul_mm` — une

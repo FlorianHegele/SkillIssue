@@ -58,6 +58,12 @@ Re-vérifier avant de figer le code : ces API évoluent (la v1 Hub'Eau a été c
   ```
   (coordonnées ≈ Alès). Réponse : `hourly_units.precipitation:"mm"` + tableaux horaires + `daily.precipitation_sum`.
 - IDs modèles : `meteofrance_seamless`, `meteofrance_arpege_world/europe`, `meteofrance_arome_france`, `meteofrance_arome_france_hd`.
+- ⚠ **Couverture** (vérifié live 07/06/2026) : `meteofrance_arome_france_hd` ne couvre que la
+  **métropole**. Hors emprise (DOM, étranger), OpenMeteo répond **HTTP 400** +
+  `{"error":true,"reason":"No data is available for this location"}` (Content-Type JSON) — pas
+  des `0.0` silencieux. Le skill relaie ce `reason` et propose `--modele meteofrance_seamless`
+  (modèle global, couvre la Réunion/Antilles/Guyane/Mayotte). OpenMeteo n'écho­te PAS le modèle
+  servi pour une requête mono-modèle → la sortie reflète le modèle *demandé*.
 
 ---
 
