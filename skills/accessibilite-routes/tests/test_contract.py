@@ -186,6 +186,27 @@ class ContractTest(unittest.TestCase):
         self.assertIn("error", out["accessibilite"])
         self.assertEqual(code, 1)
 
+    # --- QL Overpass : verrouille les filtres (sinon ils ne vivent qu'en live) ----
+    def test_query_excludes_pedestrian_and_scopes(self):
+        ql = main.build_query(44.13, 4.08, 1200, 25)
+        excl = '["highway"!~"^(footway|steps|path|cycleway|pedestrian|bridleway|corridor)$"]'
+        self.assertIn(excl, ql)                       # exclusion piétonne posée
+        self.assertIn('["layer"~"^-"]', ql)           # points bas seulement (layer négatif)
+        # bridge/tunnel/layer exigent une voie carrossable PRÉSENTE (évite ponts ferroviaires…)
+        self.assertIn('way ["highway"]%s["bridge"]["bridge"!="no"]' % excl, ql)
+        self.assertIn('way ["highway"]%s["tunnel"]["tunnel"!="no"]' % excl, ql)
+        # flood_prone/hazard restreints aux voies (pas de polygones de zone)
+        self.assertIn('way ["highway"]%s["flood_prone"="yes"]' % excl, ql)
+        self.assertIn('way ["highway"]%s["hazard"="flooding"]' % excl, ql)
+        # le gué-node reste sans filtre highway (un gué peut ne pas porter highway)
+        self.assertIn('node["ford"]["ford"!="no"](around:', ql)
+        # around: sur CHAQUE sous-requête -> jamais de scan national (7 sous-requêtes)
+        self.assertEqual(ql.count("around:"), 7)
+
+    def test_query_geometry_switches_out_statement(self):
+        self.assertIn("out tags center;", main.build_query(44.13, 4.08, 1200, 25, geom=False))
+        self.assertIn("out geom;", main.build_query(44.13, 4.08, 1200, 25, geom=True))
+
     # --- unités ---------------------------------------------------------------
     def test_classify_unit(self):
         self.assertEqual(main.classify({"ford": "yes"}), "gué")

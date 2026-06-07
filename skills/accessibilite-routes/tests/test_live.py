@@ -47,6 +47,16 @@ class LiveProbes(unittest.TestCase):
         self.assertIn("lat", sample["center"])
         self.assertIn("tags", sample)
 
+    def test_overpass_excludes_pedestrian_ways(self):
+        """Le filtre EXCLUDE_HIGHWAY est posé dans le QL (testé hors-ligne) ; ici on vérifie
+        qu'Overpass l'honore réellement : aucun way retourné ne doit porter un highway piéton."""
+        exclus = set(main.EXCLUDE_HIGHWAY.split("|"))
+        ql = main.build_query(ALES_LAT, ALES_LON, 1500, 25, geom=False)
+        data = main.overpass_query(ql, 25)
+        ways = [e for e in data["elements"] if e.get("type") == "way"]
+        offenders = [e for e in ways if (e.get("tags", {}).get("highway") in exclus)]
+        self.assertEqual(offenders, [], "des voies piétonnes ont fui le filtre Overpass")
+
     def test_end_to_end_conforms(self):
         args = main.build_parser().parse_args(["--commune", "Alès"])
         out, code = main.run(args)
