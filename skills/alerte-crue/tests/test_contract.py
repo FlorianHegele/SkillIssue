@@ -30,24 +30,29 @@ def _load(name):
         return json.load(fh)
 
 
-def _openmeteo_now(rain=True, hours=48):
+def _openmeteo_now(rain=True, hours=48, tzname="Europe/Paris", precip_none=False):
     """Réponse OpenMeteo synthétique calée sur l'heure courante (sinon le filtre
-    'prochaines heures' viderait la fenêtre selon la date du test). Heures en zone
-    Europe/Paris comme la vraie API (timezone=Europe/Paris), pour rester cohérent quel que
-    soit le fuseau de la machine de test. `hours` permet de simuler une prévision tronquée."""
-    base = datetime.now(ZoneInfo("Europe/Paris")).replace(minute=0, second=0, microsecond=0)
+    'prochaines heures' viderait la fenêtre selon la date du test). Heures en heure LOCALE du
+    fuseau `tzname` comme la vraie API (timezone=auto), avec `utc_offset_seconds` cohérent, pour
+    rester correct quel que soit le fuseau de la machine de test. `hours` simule une prévision
+    tronquée ; `precip_none` simule un modèle muet (valeurs nulles)."""
+    tz = ZoneInfo(tzname)
+    base = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
+    offset = int(base.utcoffset().total_seconds())
     times, precip = [], []
     for i in range(hours):
         times.append((base + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M"))
-        precip.append(0.0)
-    if rain and hours > 3:
+        precip.append(None if precip_none else 0.0)
+    if rain and not precip_none and hours > 3:
         precip[1], precip[2], precip[3] = 0.7, 3.6, 0.2  # pic à +2 h, créneau contigu +1..+2
     return {"hourly_units": {"precipitation": "mm"},
+            "timezone": tzname, "utc_offset_seconds": offset,
             "hourly": {"time": times, "precipitation": precip}}
 
 
 def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
-                    empty_all=False, vigicrues_doc=None, meteo_hours=48):
+                    empty_all=False, vigicrues_doc=None, meteo_hours=48,
+                    fail_meteo=False, meteo_none=False, meteo_tz="Europe/Paris"):
     def fake_http(url, params=None, timeout=20, retries=3):
         if "vigicrues" in url:
             if fail_vigicrues:
@@ -62,7 +67,11 @@ def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
                 return {"count": 0, "data": []}  # station sans débit temps réel
             return _load("hubeau_obs_%s.json" % params["grandeur_hydro"])
         if "open-meteo" in url:
-            return _openmeteo_now(rain=rain, hours=meteo_hours)
+            if fail_meteo:  # hors emprise du modèle : OpenMeteo répond HTTP 400 -> SkillError
+                raise SkillError("échec de l'appel à open-meteo",
+                                 detail="HTTP 400 — No data is available for this location")
+            return _openmeteo_now(rain=rain, hours=meteo_hours,
+                                  precip_none=meteo_none, tzname=meteo_tz)
         raise AssertionError("URL non prévue par les fixtures : %s" % url)
     return fake_http
 
@@ -211,6 +220,65 @@ class ContractTest(unittest.TestCase):
         validate(out, SCHEMA)               # la variante {error} doit aussi être conforme
         self.assertIn("error", out["vigilance"])
         self.assertEqual(code, 1)           # seule source demandée -> échec total
+
+    def test_pluie_out_of_coverage_returns_error_and_hint(self):
+        # Hors emprise du modèle, OpenMeteo lève (HTTP 400) -> la source pluie renvoie
+        # {error, indice} (jamais de faux 0 mm) en proposant meteofrance_seamless. Conforme.
+        main.http_get_json = _make_fake_http(fail_meteo=True)
+        out, code = self._run(["--lat", "-21.0", "--lon", "55.5", "--only", "pluie"])
+        validate(out, SCHEMA)
+        self.assertIn("error", out["pluie"])
+        self.assertIn("indice", out["pluie"])
+        self.assertIn("meteofrance_seamless", out["pluie"]["indice"])
+        self.assertEqual(code, 1)
+
+    def test_pluie_all_null_values_is_explicit_error(self):
+        # Réponse 200 mais modèle muet (precip None partout) -> erreur explicite, jamais un
+        # faux total à 0 mm.
+        main.http_get_json = _make_fake_http(meteo_none=True)
+        out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "pluie"])
+        validate(out, SCHEMA)
+        self.assertIn("error", out["pluie"])
+        self.assertIn("aucune", out["pluie"]["error"])
+        self.assertEqual(code, 1)
+
+    def test_output_reflects_local_timezone_of_point(self):
+        # Le fuseau racine reflète l'heure LOCALE du point (ex. La Réunion), pas Paris en dur ;
+        # la fenêtre de pluie reste bien calée et la sortie conforme au schéma.
+        main.http_get_json = _make_fake_http(meteo_tz="Indian/Reunion")
+        out, _ = self._run(["--lat", "-21.0", "--lon", "55.5", "--only", "pluie",
+                            "--modele", "meteofrance_seamless"])
+        validate(out, SCHEMA)
+        self.assertEqual(out["fuseau"], "Indian/Reunion")
+        self.assertEqual(out["pluie"]["pic"]["precipitation_mm"], 3.6)  # fenêtre bien calée
+
+    def test_hydro_dates_converted_to_local_time(self):
+        # Hub'Eau renvoie l'obs en UTC (..Z) ; la sortie doit la rendre en heure LOCALE du point
+        # (métropole : +02:00 l'été), sans suffixe Z ni décalage UTC résiduel.
+        main.http_get_json = _make_fake_http()
+        out, _ = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "hydro"])
+        validate(out, SCHEMA)
+        date_h = out["hydro"]["stations"][0]["date_hauteur"]
+        self.assertNotIn("Z", date_h)               # plus en UTC brut
+        # fixture = 2026-06-06T11:55:00Z -> Europe/Paris (CEST, +2) = 13:55 local
+        self.assertTrue(date_h.startswith("2026-06-06T13:55"))
+
+    def test_vigilance_troncon_beyond_radius(self):
+        # Tronçon trouvé mais hors rayon -> {error, troncon_le_plus_proche} : on ne tait pas
+        # qu'un tronçon existe, on dit juste qu'il est trop loin. Conforme au schéma.
+        doc = {"type": "FeatureCollection", "features": [{
+            "type": "Feature",
+            "geometry": {"type": "MultiLineString",
+                         "coordinates": [[[2.35, 48.85], [2.36, 48.86]]]},  # Paris, ~600 km
+            "properties": {"lbentcru": "Seine", "NivInfViCr": 2}}]}
+        main.http_get_json = _make_fake_http(vigicrues_doc=doc)
+        out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "vigilance",
+                               "--radius", "15"])
+        validate(out, SCHEMA)
+        self.assertIn("error", out["vigilance"])
+        self.assertIn("rayon", out["vigilance"]["error"])
+        self.assertIn("troncon_le_plus_proche", out["vigilance"])
+        self.assertEqual(code, 1)
 
 
 if __name__ == "__main__":

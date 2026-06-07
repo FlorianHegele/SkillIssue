@@ -2,10 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "alerte-crue — sortie",
   "type": "object",
-  "required": ["lieu"],
+  "required": ["lieu", "fuseau"],
   "additionalProperties": false,
   "properties": {
     "lieu": { "$ref": "#/$defs/lieu" },
+    "fuseau": { "type": "string", "description": "Fuseau IANA local du point ; référentiel de TOUS les horodatages de la sortie (heures de pluie, dates hydro)." },
     "vigilance": { "oneOf": [ { "$ref": "#/$defs/vigilance" }, { "$ref": "#/$defs/erreur" } ] },
     "hydro": { "oneOf": [ { "$ref": "#/$defs/hydro" }, { "$ref": "#/$defs/erreur" } ] },
     "pluie": { "oneOf": [ { "$ref": "#/$defs/pluie" }, { "$ref": "#/$defs/erreur" } ] }

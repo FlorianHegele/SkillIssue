@@ -58,6 +58,12 @@ Re-vérifier avant de figer le code : ces API évoluent (la v1 Hub'Eau a été c
   ```
   (coordonnées ≈ Alès). Réponse : `hourly_units.precipitation:"mm"` + tableaux horaires + `daily.precipitation_sum`.
 - IDs modèles : `meteofrance_seamless`, `meteofrance_arpege_world/europe`, `meteofrance_arome_france`, `meteofrance_arome_france_hd`.
+- **Fuseau** : le skill déduit le fuseau IANA LOCAL du point (`_common.local_timezone` : Europe/Paris
+  en métropole, Indian/Reunion à La Réunion…) et interroge OpenMeteo avec `timezone=<ce fuseau>` →
+  les horodatages horaires sont déjà en heure locale. Ce même fuseau sert à ancrer « maintenant »
+  (fenêtre 24 h) ET à convertir les dates Hub'Eau (rendues en **UTC**, suffixe `Z`) vers le local.
+  Résultat : TOUS les horodatages de la sortie sont dans un seul référentiel, déclaré une fois à la
+  clé racine `fuseau` — jamais un mélange Paris/UTC.
 - ⚠ **Couverture** (vérifié live 07/06/2026) : `meteofrance_arome_france_hd` ne couvre que la
   **métropole**. Hors emprise (DOM, étranger), OpenMeteo répond **HTTP 400** +
   `{"error":true,"reason":"No data is available for this location"}` (Content-Type JSON) — pas

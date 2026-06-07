@@ -26,6 +26,29 @@ FRANCE_BBOXES = [
     (-13.1, -12.5, 44.9, 45.4),  # Mayotte
 ]
 
+# Fuseau IANA de chaque zone (même ordre que FRANCE_BBOXES). Permet de localiser TOUS les
+# horodatages d'un skill (pluie, mesures hydro…) en heure locale du point, plutôt que de
+# mélanger Paris/UTC. Antilles : Guadeloupe et Martinique partagent l'offset UTC-4 ; on expose
+# America/Guadeloupe pour les deux (offset identique). Métropole : Europe/Paris gère le DST.
+FRANCE_TIMEZONES = [
+    "Europe/Paris",
+    "America/Cayenne",      # Guyane (UTC-3)
+    "America/Guadeloupe",   # Guadeloupe / Martinique (UTC-4)
+    "Indian/Reunion",       # La Réunion (UTC+4)
+    "Indian/Mayotte",       # Mayotte (UTC+3)
+]
+
+
+def local_timezone(lat, lon):
+    """Nom de fuseau IANA du point en France (métropole/DOM), pour localiser les horodatages.
+
+    Repli Europe/Paris hors zone connue (cohérent avec le défaut métropole ; la résolution de
+    localisation a déjà rejeté les points hors de France via `in_france`)."""
+    for (latmin, latmax, lonmin, lonmax), tz in zip(FRANCE_BBOXES, FRANCE_TIMEZONES):
+        if latmin <= lat <= latmax and lonmin <= lon <= lonmax:
+            return tz
+    return "Europe/Paris"
+
 
 def normalize(text):
     """minuscule + sans accents + trim, pour comparer des noms de communes."""

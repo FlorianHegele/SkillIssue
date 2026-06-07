@@ -48,10 +48,17 @@ horaire complète 24 h), `--seuil-pluie` mm/h (pluie : seuil d'une heure « pluv
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, vigilance, hydro, pluie }` (hauteurs en mm, débits en l/s, pluie en
-mm). Reformuler ensuite en langage naturel pour l'utilisateur. Une source en échec apparaît avec
-un champ `error` sans bloquer les autres ; une localisation manquante/introuvable renvoie une
-erreur sur stderr avec un code retour ≠ 0.
+JSON sur stdout : `{ lieu, fuseau, vigilance, hydro, pluie }` (hauteurs en mm, débits en l/s,
+pluie en mm). Reformuler ensuite en langage naturel pour l'utilisateur. Une source en échec
+apparaît avec un champ `error` sans bloquer les autres ; une localisation manquante/introuvable
+renvoie une erreur sur stderr avec un code retour ≠ 0.
+
+**Heure locale du point.** `fuseau` (clé racine, IANA — ex. `Europe/Paris`, `Indian/Reunion`)
+est le **référentiel de TOUS les horodatages** de la sortie : heures de pluie (`heures_pluvieuses`,
+`pic`, `creneaux`) **et** dates des mesures hydro (`date_hauteur`, `date_debit`). Tout est en heure
+**locale du point**, jamais un mélange Paris/UTC : les dates Hub'Eau (rendues en UTC par l'API)
+sont converties vers ce fuseau, et OpenMeteo est interrogé sur ce même fuseau. Lire `fuseau` une
+fois suffit à interpréter chaque heure (utile notamment pour les DOM).
 
 **Hydro** : objet `{ stations[], stations_dans_rayon }`. Une mesure (`hauteur_mm`, `debit_ls`)
 vaut soit un nombre, soit une **chaîne explicative** si elle manque (ex. `"indisponible : pas de
@@ -68,7 +75,8 @@ meteofrance_seamless` — jamais de faux `0 mm`.
 plus forte), `creneaux[]` (chaque épisode pluvieux contigu : `debut`/`fin`/`cumul_mm` — une
 accalmie sépare deux créneaux, pas d'intervalle qui masquerait les trous), et
 `heures_pluvieuses[]` — **seules** les heures où la pluie atteint le seuil (les heures sèches
-sont écartées ; liste vide = pas de pluie notable).
+sont écartées ; liste vide = pas de pluie notable). Les horodatages sont en heure locale du point
+(voir `fuseau` ci-dessus).
 L'intensité horaire (mm/h) est le facteur déclenchant des crues-éclair cévenoles. La série
 horaire intégrale n'apparaît (`par_heure[]`) qu'avec `--detail`.
 

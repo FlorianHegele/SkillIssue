@@ -24,7 +24,8 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from _common import (  # noqa: E402
-    SkillError, emit_error, haversine_km, http_get_json, jsonable, resolve_location,
+    SkillError, emit_error, haversine_km, http_get_json, jsonable, local_timezone,
+    resolve_location,
 )
 
 import contract as C  # noqa: E402  (module local du skill)
@@ -49,10 +50,24 @@ SEUIL_PLUIE_MM = 0.5  # mm/h en deçà desquels une heure est "sèche" (bruit, �
 # global, couvre la Réunion/Antilles/etc.). On reflète toujours le modèle DEMANDÉ dans la
 # sortie : OpenMeteo n'écho­te pas le modèle réellement servi pour une requête mono-modèle.
 AROME_HD = "meteofrance_arome_france_hd"
-# OpenMeteo est interrogé avec timezone=Europe/Paris : ses horodatages horaires sont donc
-# en heure locale de Paris (naïfs). On ancre « maintenant » sur CETTE zone, sans dépendre du
-# fuseau de la machine (un serveur en UTC décalerait sinon la fenêtre des 24 h).
-PARIS_TZ = ZoneInfo("Europe/Paris")
+# TOUS les horodatages de la sortie sont en heure LOCALE du point (champ racine `fuseau`),
+# jamais un mélange Paris/UTC. Le fuseau est déduit de la position (local_timezone) : Europe/Paris
+# en métropole (DST géré), Indian/Reunion à La Réunion, etc. On le passe à OpenMeteo (timezone=…)
+# pour que ses heures soient déjà locales, et on s'en sert pour ancrer « maintenant » sans dépendre
+# du fuseau de la machine, ET pour convertir les dates Hub'Eau (rendues en UTC `Z`) vers ce fuseau.
+
+
+def to_local_iso(iso_utc, tz):
+    """Convertit un horodatage Hub'Eau (UTC, suffixe `Z`) en heure locale `tz` (ISO naïf, comme
+    les heures de pluie : la sortie déclare le fuseau une seule fois au niveau racine). Best
+    effort : renvoie la valeur d'origine si elle n'est pas parsable (on ne casse pas la sortie)."""
+    if not isinstance(iso_utc, str):
+        return iso_utc
+    try:
+        dt = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+    except ValueError:
+        return iso_utc
+    return dt.astimezone(tz).replace(tzinfo=None).isoformat()
 
 
 # --- Adaptateur : vigilance Vigicrues ----------------------------------------
@@ -99,7 +114,7 @@ def collect_vigilance(loc, radius_km, timeout):
 
 
 # --- Adaptateur : hydrométrie Hub'Eau ----------------------------------------
-def collect_hydro(loc, radius_km, timeout, max_stations=4):
+def collect_hydro(loc, radius_km, timeout, tz, max_stations=4):
     dlat = radius_km / 111.0
     dlon = radius_km / (111.0 * max(math.cos(math.radians(loc.lat)), 0.1))
     bbox = "%s,%s,%s,%s" % (
@@ -139,7 +154,9 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
                 rows = obs.get("data", [])
                 if rows:
                     mesures[key] = rows[0].get("resultat_obs")
-                    dates[key] = rows[0].get("date_obs")
+                    # Hub'Eau date en UTC (`Z`) -> heure locale du point, pour ne pas mélanger
+                    # les fuseaux dans la sortie (pluie aussi est en local).
+                    dates[key] = to_local_iso(rows[0].get("date_obs"), tz)
                 else:  # appel OK mais aucune donnée temps réel pour cette grandeur
                     mesures[key] = "indisponible : pas de mesure temps réel récente"
             except SkillError as exc:  # l'appel a échoué : on le dit, sans masquer
@@ -165,16 +182,19 @@ def collect_hydro(loc, radius_km, timeout, max_stations=4):
 
 
 # --- Adaptateur : prévision pluie OpenMeteo ----------------------------------
-def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME_HD):
+def collect_pluie(loc, timeout, tz, fuseau, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME_HD):
     """Pluie 24 h optimisée pour la décision : on ne garde que les heures pluvieuses
-    (>= seuil) + un résumé (cumul, pic, créneau). --detail réexpose la série complète."""
+    (>= seuil) + un résumé (cumul, pic, créneau). --detail réexpose la série complète.
+    Horodatages en heure locale du point (fuseau `fuseau`, déclaré au niveau racine)."""
     try:
         data = http_get_json(
             OPENMETEO,
             params={"latitude": loc.lat, "longitude": loc.lon,
                     "hourly": "precipitation",
                     "models": modele,
-                    "timezone": "Europe/Paris", "forecast_days": 2},
+                    # On impose le fuseau LOCAL du point : OpenMeteo renvoie alors ses heures
+                    # déjà dans ce fuseau (cohérent avec les dates hydro, converties pareil).
+                    "timezone": fuseau, "forecast_days": 2},
             timeout=timeout,
         )
     except SkillError as exc:
@@ -188,7 +208,9 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME
     hourly = data.get("hourly", {})
     times = hourly.get("time", [])
     precip = hourly.get("precipitation", [])
-    now = datetime.now(PARIS_TZ)
+    # Heures en local du point : on ancre « maintenant » sur ce fuseau, sans dépendre de celui
+    # de la machine (un serveur en UTC décalerait sinon la fenêtre des 24 h).
+    now = datetime.now(tz)
     cur_hour = now.replace(minute=0, second=0, microsecond=0)
 
     fenetre = []  # (heure_iso, mm | None) ; None = valeur non fournie (trou de couverture)
@@ -197,8 +219,8 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME
             dt = datetime.fromisoformat(t)
         except ValueError:
             continue
-        if dt.tzinfo is None:  # OpenMeteo renvoie l'heure locale Paris en naïf -> on l'ancre
-            dt = dt.replace(tzinfo=PARIS_TZ)
+        if dt.tzinfo is None:  # heure locale en naïf -> on l'ancre sur le fuseau servi
+            dt = dt.replace(tzinfo=tz)
         if dt < cur_hour:
             continue
         if len(fenetre) >= 24:
@@ -262,24 +284,28 @@ def collect_pluie(loc, timeout, detail=False, seuil=SEUIL_PLUIE_MM, modele=AROME
 
 # --- Orchestration ------------------------------------------------------------
 COLLECTEURS = {
-    "vigilance": lambda loc, a: collect_vigilance(loc, a.radius, a.timeout),
-    "hydro": lambda loc, a: collect_hydro(loc, a.radius, a.timeout,
-                                          max_stations=a.max_stations),
-    "pluie": lambda loc, a: collect_pluie(loc, a.timeout, detail=a.detail,
-                                          seuil=a.seuil_pluie, modele=a.modele),
+    "vigilance": lambda loc, a, tz, fus: collect_vigilance(loc, a.radius, a.timeout),
+    "hydro": lambda loc, a, tz, fus: collect_hydro(loc, a.radius, a.timeout, tz,
+                                                   max_stations=a.max_stations),
+    "pluie": lambda loc, a, tz, fus: collect_pluie(loc, a.timeout, tz, fus, detail=a.detail,
+                                                   seuil=a.seuil_pluie, modele=a.modele),
 }
 
 
 def run(args):
     loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
+    # Fuseau LOCAL du point : référentiel unique de TOUS les horodatages de la sortie (pluie,
+    # dates hydro). Déclaré une seule fois au niveau racine pour lever toute ambiguïté.
+    fuseau = local_timezone(loc.lat, loc.lon)
+    tz = ZoneInfo(fuseau)
     # Dédup en gardant l'ordre : --only répété ne doit pas relancer une source ni fausser
     # le compte d'erreurs (qui pilote le code retour).
     sources = list(dict.fromkeys(args.only or list(COLLECTEURS.keys())))
-    out = {"lieu": jsonable(loc)}
+    out = {"lieu": jsonable(loc), "fuseau": fuseau}
     erreurs = 0
     for name in sources:
         try:
-            result = COLLECTEURS[name](loc, args)
+            result = COLLECTEURS[name](loc, args, tz, fuseau)
             out[name] = jsonable(result)
             if isinstance(out[name], dict) and "error" in out[name]:
                 erreurs += 1

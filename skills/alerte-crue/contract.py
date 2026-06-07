@@ -8,6 +8,10 @@ Question de décision en crue → champs nécessaires :
 
 Les adaptateurs (collect_* dans main.py) traduisent Vigicrues / Hub'Eau / OpenMeteo vers
 ces structures. Le contrat exécutable (validation) est `contract.schema.json`.
+
+Fuseau : TOUS les horodatages de la sortie (heures de pluie, dates hydro) sont en heure LOCALE
+du point. Le fuseau (IANA) est déclaré UNE fois au niveau racine (clé `fuseau`), jamais répété
+par champ ni mélangé avec de l'UTC.
 """
 
 from dataclasses import dataclass, field
