@@ -50,7 +50,7 @@ def _openmeteo_now(rain=True, hours=48, tzname="Europe/Paris", precip_none=False
             "hourly": {"time": times, "precipitation": precip}}
 
 
-def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
+def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False, null_debit=False,
                     empty_all=False, vigicrues_doc=None, meteo_hours=48,
                     fail_meteo=False, meteo_none=False, meteo_tz="Europe/Paris"):
     def fake_http(url, params=None, timeout=20, retries=3):
@@ -65,6 +65,11 @@ def _make_fake_http(fail_vigicrues=False, rain=True, empty_debit=False,
                 return {"count": 0, "data": []}  # aucune mesure (H ni Q) sur la station
             if empty_debit and params["grandeur_hydro"] == "Q":
                 return {"count": 0, "data": []}  # station sans débit temps réel
+            if null_debit and params["grandeur_hydro"] == "Q":
+                # ligne présente mais resultat_obs null (capteur muet) : ne doit PAS produire
+                # un null ambigu dans la sortie (violerait le schéma number-or-string).
+                return {"count": 1, "data": [{"date_obs": "2026-06-06T11:55:00Z",
+                                              "resultat_obs": None}]}
             return _load("hubeau_obs_%s.json" % params["grandeur_hydro"])
         if "open-meteo" in url:
             if fail_meteo:  # hors emprise du modèle : OpenMeteo répond HTTP 400 -> SkillError
@@ -127,6 +132,19 @@ class ContractTest(unittest.TestCase):
         self.assertIsInstance(st["date_hauteur"], str)
         self.assertIsNone(st["date_debit"])
         self.assertEqual(code, 0)                             # station listée (a une mesure)
+
+    def test_null_resultat_is_explanatory_string(self):
+        # Hub'Eau renvoie une ligne avec resultat_obs=null (capteur muet) : la mesure doit
+        # devenir une chaîne explicative, jamais un null ambigu qui violerait le schéma.
+        main.http_get_json = _make_fake_http(null_debit=True)
+        out, code = self._run(["--lat", "44.12", "--lon", "4.08", "--only", "hydro"])
+        validate(out, SCHEMA)                       # number-or-string reste conforme
+        st = out["hydro"]["stations"][0]
+        self.assertIsInstance(st["hauteur_mm"], float)        # mesure OK : nombre
+        self.assertIsInstance(st["debit_ls"], str)            # null -> chaîne
+        self.assertIn("indisponible", st["debit_ls"])
+        self.assertIsNone(st["date_debit"])                   # pas de date sans mesure
+        self.assertEqual(code, 0)
 
     def test_vigicrues_niveau_string_is_coerced(self):
         # L'API renvoie NivInfViCr en chaîne "3" -> doit devenir l'entier 3 + couleur orange,

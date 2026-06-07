@@ -152,12 +152,14 @@ def collect_hydro(loc, radius_km, timeout, tz, max_stations=4):
                     timeout=timeout,
                 )
                 rows = obs.get("data", [])
-                if rows:
-                    mesures[key] = rows[0].get("resultat_obs")
+                val = rows[0].get("resultat_obs") if rows else None
+                if isinstance(val, (int, float)):
+                    mesures[key] = val
                     # Hub'Eau date en UTC (`Z`) -> heure locale du point, pour ne pas mélanger
                     # les fuseaux dans la sortie (pluie aussi est en local).
                     dates[key] = to_local_iso(rows[0].get("date_obs"), tz)
-                else:  # appel OK mais aucune donnée temps réel pour cette grandeur
+                else:  # appel OK mais aucune mesure exploitable (aucune ligne, ou resultat_obs
+                       # null : capteur muet alors que la ligne existe) -> jamais un null ambigu.
                     mesures[key] = "indisponible : pas de mesure temps réel récente"
             except SkillError as exc:  # l'appel a échoué : on le dit, sans masquer
                 mesures[key] = "erreur : %s" % exc.message
