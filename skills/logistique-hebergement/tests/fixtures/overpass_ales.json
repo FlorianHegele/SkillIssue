@@ -1,0 +1,79 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API (fixture réduite, secteur Alès — pour tests hors-ligne)",
+  "elements": [
+    {
+      "type": "node",
+      "id": 2001,
+      "lat": 44.129,
+      "lon": 4.082,
+      "tags": { "tourism": "hotel", "name": "Hôtel du Gardon", "rooms": "50" }
+    },
+    {
+      "type": "node",
+      "id": 2002,
+      "lat": 44.127,
+      "lon": 4.080,
+      "tags": { "tourism": "hotel", "name": "Hôtel des Cévennes", "beds": "80" }
+    },
+    {
+      "type": "node",
+      "id": 2003,
+      "lat": 44.130,
+      "lon": 4.084,
+      "tags": { "tourism": "hotel", "name": "Grand Hôtel", "stars": "4" }
+    },
+    {
+      "type": "node",
+      "id": 2004,
+      "lat": 44.131,
+      "lon": 4.079,
+      "tags": { "tourism": "hotel", "name": "Auberge sans données" }
+    },
+    {
+      "type": "way",
+      "id": 3001,
+      "center": { "lat": 44.125, "lon": 4.078 },
+      "geometry": [
+        { "lat": 44.1240, "lon": 4.0770 },
+        { "lat": 44.1240, "lon": 4.0790 },
+        { "lat": 44.1255, "lon": 4.0790 },
+        { "lat": 44.1255, "lon": 4.0770 },
+        { "lat": 44.1240, "lon": 4.0770 }
+      ],
+      "tags": { "leisure": "sports_centre", "name": "Gymnase municipal" }
+    },
+    {
+      "type": "way",
+      "id": 3002,
+      "center": { "lat": 44.126, "lon": 4.085 },
+      "geometry": [
+        { "lat": 44.1258, "lon": 4.0848 },
+        { "lat": 44.1258, "lon": 4.0853 },
+        { "lat": 44.1262, "lon": 4.0853 },
+        { "lat": 44.1262, "lon": 4.0848 },
+        { "lat": 44.1258, "lon": 4.0848 }
+      ],
+      "tags": { "amenity": "school", "name": "École Jean Jaurès" }
+    },
+    {
+      "type": "node",
+      "id": 3003,
+      "lat": 44.128,
+      "lon": 4.083,
+      "tags": { "amenity": "community_centre", "name": "Salle des fêtes" }
+    },
+    {
+      "type": "way",
+      "id": 3004,
+      "tags": { "amenity": "school", "name": "École sans position" }
+    },
+    {
+      "type": "node",
+      "id": 9001,
+      "lat": 44.129,
+      "lon": 4.081,
+      "tags": { "tourism": "museum", "name": "Musée (non hébergement)" }
+    }
+  ]
+}
