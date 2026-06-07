@@ -46,34 +46,46 @@ NOTE = ("OpenStreetMap cartographie le réseau routier et les ouvrages (ponts, t
 RELEVANT_TAGS = ("highway", "bridge", "tunnel", "ford", "layer", "intermittent",
                  "waterway", "name", "ref", "man_made", "culvert", "flood_prone", "hazard")
 
+# Voies NON carrossables exclues côté Overpass : le skill sert à planifier l'accès des véhicules
+# et des secours, une passerelle piétonne ou un escalier en tunnel n'est pas un « ouvrage routier
+# à risque » ici. Les gués sont souvent un node sans tag highway -> non filtrés de cette façon.
+EXCLUDE_HIGHWAY = "footway|steps|path|cycleway|pedestrian|bridleway|corridor"
+
 
 # --- Requête Overpass ---------------------------------------------------------
 def build_query(lat, lon, radius_m, timeout, geom=False):
     """Assemble le QL : union scopée par `around:` (jamais à l'échelle nationale).
 
     `out tags center;` (défaut) = point représentatif + tags, léger. `out geom;` (--geometry)
-    ajoute le tracé complet de chaque way.
+    ajoute le tracé complet de chaque way (le tracé est dans la RÉPONSE, la requête reste courte).
+    Filtres : voie carrossable présente et non piétonne ; `layer` scopé aux valeurs négatives
+    (points bas) ; flood_prone/hazard restreints aux voies (pas de polygones de zone hors-sujet).
     """
     out_stmt = "out geom;" if geom else "out tags center;"
     a = "around:%d,%s,%s" % (int(radius_m), lat, lon)
+    road = '["highway"]["highway"!~"^(%s)$"]' % EXCLUDE_HIGHWAY      # carrossable présente
+    not_foot = '["highway"!~"^(%s)$"]' % EXCLUDE_HIGHWAY             # exclut piéton, tolère absence
     parts = [
-        'way ["ford"]["ford"!="no"](%s);' % a,
+        'way %s["ford"]["ford"!="no"](%s);' % (not_foot, a),
         'node["ford"]["ford"!="no"](%s);' % a,
-        'way ["highway"]["bridge"]["bridge"!="no"](%s);' % a,
-        'way ["highway"]["tunnel"]["tunnel"!="no"](%s);' % a,
-        'way ["highway"]["layer"](%s);' % a,
-        'way ["flood_prone"="yes"](%s);' % a,
-        'way ["hazard"="flooding"](%s);' % a,
+        'way %s["bridge"]["bridge"!="no"](%s);' % (road, a),
+        'way %s["tunnel"]["tunnel"!="no"](%s);' % (road, a),
+        'way %s["layer"~"^-"](%s);' % (road, a),
+        'way %s["flood_prone"="yes"](%s);' % (road, a),
+        'way %s["hazard"="flooding"](%s);' % (road, a),
     ]
     return "[out:json][timeout:%d];\n(\n  %s\n);\n%s" % (
         int(timeout), "\n  ".join(parts), out_stmt)
 
 
 def overpass_query(ql, timeout):
-    """POST/GET du QL sur Overpass, avec repli sur le miroir. Lève SkillError si les deux échouent.
+    """GET du QL sur Overpass (le QL passe en query-string `?data=`), avec repli sur le miroir.
+    Lève SkillError si les deux échouent.
 
-    `http_get_json` rejette déjà les pages HTML d'erreur (406/429/504 servies en 200) via la
-    garde Content-Type, et retente avec backoff. Marge de timeout HTTP au-dessus du `[timeout:]` QL.
+    Le QL est court (~600 caractères) même avec --geometry : la géométrie est dans la RÉPONSE,
+    pas dans la requête — pas de risque de dépassement de longueur d'URL. `http_get_json` rejette
+    déjà les pages HTML d'erreur (406/429/504 servies en 200) via la garde Content-Type, et
+    retente avec backoff. Marge de timeout HTTP au-dessus du `[timeout:]` QL.
     """
     http_timeout = timeout + 15
     try:
@@ -187,13 +199,9 @@ def collect_accessibilite(loc, args):
                                    else float("inf")))
 
     # --limit borne la LISTE ; le résumé compte tous les ouvrages trouvés (signale la troncature).
-    if args.limit is not None and args.limit >= 0:
-        listes = retenus[:args.limit]
-    else:
-        listes = retenus
-
+    # limit >= 0 garanti par run() ; limit == 0 -> liste vide (résumé seul).
     ouvrages_out = []
-    for ouv, el in listes:
+    for ouv, el in retenus[:args.limit]:
         d = jsonable(ouv)
         if args.geometry:                       # tracé complet hors-contrat (cf. alerte-crue)
             d["geometry"] = el.get("geometry") or None
@@ -216,6 +224,9 @@ def run(args):
         fail("rayon hors bornes : %s m (attendu 1..%d)" % (args.radius_m, MAX_RADIUS_M),
              detail="Overpass doit rester scopé (clés ford/flood non indexées). "
                     "Réduire --radius-m, ou lancer plusieurs requêtes ciblées.")
+    if args.limit < 0:
+        fail("--limit négatif (%d) invalide : attendre un entier >= 0 "
+             "(0 = résumé seul, sans liste détaillée)" % args.limit)
     loc = resolve_location(args.commune, args.lat, args.lon, args.timeout)
     out = {"lieu": jsonable(loc)}
     erreurs = 0

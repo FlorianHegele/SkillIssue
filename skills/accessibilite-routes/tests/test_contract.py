@@ -162,6 +162,19 @@ class ContractTest(unittest.TestCase):
         with self.assertRaises(SkillError):
             self._run(["--commune", "Alès", "--radius-m", "0"])
 
+    def test_negative_limit_raises(self):
+        self._mock()
+        with self.assertRaises(SkillError):
+            self._run(["--commune", "Alès", "--limit", "-1"])
+
+    def test_limit_zero_is_summary_only(self):
+        self._mock()
+        out, code = self._run(["--commune", "Alès", "--limit", "0"])
+        validate(out, SCHEMA)
+        self.assertEqual(code, 0)
+        self.assertEqual(out["accessibilite"]["ouvrages_a_risque"], [])
+        self.assertEqual(out["accessibilite"]["resume"]["ouvrages_total"], 6)  # résumé complet
+
     def test_overpass_failure_becomes_error_variant(self):
         self._mock()
 

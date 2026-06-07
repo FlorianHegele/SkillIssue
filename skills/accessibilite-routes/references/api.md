@@ -65,6 +65,33 @@ out geom;
   Leur absence ≠ « non vulnérable ». Pour un vrai jugement d'aléa → **croiser avec Géorisques / data.gouv.fr**
   (« Risque d'inondation », zonages TRI). OSM = réseau + ouvrages ; l'État = l'aléa.
 
-## Sortie attendue (synthèse JSON)
+## Sortie réelle du skill (contrat)
 
-`{ centre: {lat, lon, rayon_m}, routes: [{id, type, geometry}], ouvrages_a_risque: [{id, kind: pont|tunnel|gue, tags, geometry}] }`
+Voir `contract.py` / `contract.schema.json`. Forme : `{ lieu, accessibilite }`.
+
+```jsonc
+{
+  "lieu": { "commune", "code_insee", "lat", "lon" },
+  "accessibilite": {
+    "rayon_m": 1500,
+    "resume": { "ouvrages_total", "gues", "ponts", "tunnels",
+                "passages_inferieurs", "zones_inondables" },   // compté sur TOUS les ouvrages
+    "ouvrages_a_risque": [                                      // trié par distance ; --limit borne
+      { "osm_id": "way/123", "kind": "gué|pont|tunnel|passage_inférieur|zone_inondable",
+        "nom", "highway", "lat", "lon", "distance_km", "tags",
+        "geometry": [ {lat,lon}… ] }                           // uniquement avec --geometry
+    ],
+    "note": "OSM ≠ aléa : croiser avec Géorisques (zonages TRI)."
+  }
+}
+```
+
+- Décision = priorité de `kind` : `gué` > `tunnel` > `pont` > `passage_inférieur` (`layer` < 0) >
+  `zone_inondable` (flood_prone/hazard).
+- **Filtres appliqués côté Overpass** (cf. `main.build_query`) : voies **non carrossables**
+  exclues (`footway|steps|path|cycleway|pedestrian|bridleway|corridor` — skill = accès véhicules /
+  secours) ; `layer` scopé aux **valeurs négatives** ; `flood_prone`/`hazard` restreints aux
+  **voies** (pas de polygones de zone). Les gués (souvent un node sans `highway`) ne sont pas
+  filtrés ainsi.
+- Mesure absente (way sans position) = **chaîne explicative**, jamais `null` ; rejetée en fin de
+  tri. `--radius-m` borné à 5000 m (scoping fair-use). `--limit` >= 0 (0 = résumé seul).
