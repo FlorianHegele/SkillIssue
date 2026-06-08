@@ -45,12 +45,15 @@ Options : `--only {vigilance,hydro,pluie}` (défaut : les trois), `--radius` km 
 `--max-stations` (hydro : nb max de stations retournées, défaut 4), `--modele` (pluie : modèle
 OpenMeteo, défaut `meteofrance_arome_france_hd` — **métropole uniquement** ; hors métropole / DOM
 utiliser `meteofrance_seamless`), `--timeout` s (défaut 20), `--detail` (pluie : ajoute la série
-horaire complète 24 h), `--seuil-pluie` mm/h (pluie : seuil d'une heure « pluvieuse », défaut 0.5).
+horaire complète 24 h), `--seuil-pluie` mm/h (pluie : seuil d'une heure « pluvieuse », défaut 0.5),
+`--cache-dir` (répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`).
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, fuseau, vigilance, hydro, pluie }` (hauteurs en mm, débits en l/s,
-pluie en mm). Reformuler ensuite en langage naturel pour l'utilisateur. Une source en échec
+JSON sur stdout : `{ lieu, fuseau, vigilance, hydro, pluie, skill }` (hauteurs en mm, débits en
+l/s, pluie en mm). Le bloc `skill` (métadonnée de version/mise à jour du skill, alimenté par
+`_common`) est toujours présent et sans incidence sur la décision. Reformuler ensuite en langage
+naturel pour l'utilisateur. Une source en échec
 apparaît avec un champ `error` sans bloquer les autres ; une localisation manquante/introuvable
 renvoie une erreur sur stderr avec un code retour ≠ 0.
 

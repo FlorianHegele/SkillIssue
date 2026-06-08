@@ -70,7 +70,9 @@ demandant de mettre à jour le repo du skill.
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, dataset, demographie }`.
+JSON sur stdout : `{ lieu, dataset, demographie, skill }`. Le bloc `skill` (métadonnée de
+version/mise à jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur
+la décision.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
 - `demographie.commune` : `population`, `menages_total`, `familles_total`, `monoparentales_total`
   (somme **complète**), `part_monoparentales_pct` (indicateur de vulnérabilité) +

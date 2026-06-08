@@ -77,7 +77,9 @@ version de skill supérieure, il le signale via `dataset.maj_skill_disponible` +
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, dataset, vulnerabilite }`.
+JSON sur stdout : `{ lieu, dataset, vulnerabilite, skill }`. Le bloc `skill` (métadonnée de
+version/mise à jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur
+la décision.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
 - `vulnerabilite.commune` : `code`, `nom`, `ecoles_count`, `sante_count` (totaux trouvés dans le
   périmètre, **avant** la limite `--top`).

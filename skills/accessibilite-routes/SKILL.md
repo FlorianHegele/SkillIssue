@@ -48,11 +48,13 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --lat 44.13 --lon 4.08 --radius-m 800 --limi
 ```
 
 Options : `--radius-m` mètres (défaut 1500, max 5000 — toujours scopé), `--limit` (défaut 100,
-borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25).
+borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25),
+`--cache-dir` (répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`).
 
 ## Sortie
 
-JSON sur stdout : `{ lieu, accessibilite }`.
+JSON sur stdout : `{ lieu, accessibilite, skill }`. Le bloc `skill` (métadonnée de version/mise à
+jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur la décision.
 - `accessibilite.rayon_m` : rayon utilisé.
 - `accessibilite.resume` : compteurs `ouvrages_total`, `gues`, `ponts`, `tunnels`,
   `passages_inferieurs`, `zones_inondables` (sur **tous** les ouvrages trouvés, même au-delà de
