@@ -78,13 +78,12 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --commune "Alès" --geometry
 
 Options : `--radius-m` mètres (défaut 2000, max 5000 — toujours scopé), `--limit` (défaut 100,
 borne la liste ; le résumé compte tous les sites trouvés), `--geometry` (ajoute le tracé complet
-en plus du point représentatif), `--timeout` s (défaut 25), `--cache-dir` (répertoire de cache,
-défaut `./data` ou `$FLOOD_CACHE_DIR`).
+en plus du point représentatif), `--timeout` s (défaut 25).
 
 ## Sortie
 
 JSON sur stdout : `{ lieu, hebergement, skill }`. Le bloc `skill` (métadonnée de version/mise à
-jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur la décision.
+jour du skill) est toujours présent et sans incidence sur la décision.
 - `hebergement.rayon_m` : rayon utilisé.
 - `hebergement.resume` : compteurs `sites_total`, `hotels`, `gymnases`, `ecoles`,
   `salles_communales`, plus deux totaux de couchages distincts — `capacite_fiable_totale` (tags OSM
@@ -105,9 +104,3 @@ Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne exp
 ambigu ; vérifier le type avant tout calcul. Une commune introuvable / hors France, ou Overpass
 indisponible (avec miroir), renvoie une erreur (stderr + code ≠ 0) ; un secteur sans site renvoie
 des compteurs à 0 et une liste vide (réponse valide, code 0).
-
-Contrat de sortie (défini en amont) : `contract.py` (dataclasses typées) + `contract.schema.json`
-(validé hors-ligne par `tests/test_contract.py`). Infra commune : `skills/_common/`.
-
-Détails Overpass (endpoint, miroir, limites, requêtes testées, complétude des tags de capacité) :
-voir `references/api.md`.

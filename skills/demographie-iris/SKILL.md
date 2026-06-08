@@ -47,32 +47,18 @@ Options : `--zone` (défaut `auto` : essaie tous les fichiers déclarés par le 
 trouver la commune ; ou une zone précise, ex. `metropole`/`com`), `--detail` (ajoute par IRIS :
 couples avec/sans enfants, type d'IRIS), `--top N` (limite la liste IRIS aux N plus peuplés,
 défaut 20, `--top 0` = liste complète ; les totaux commune restent calculés sur **tous** les IRIS),
-`--cache-dir` (répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`), `--refresh` (force le
-re-téléchargement), `--timeout` s (défaut 60).
+`--timeout` s (défaut 60).
 
-**1er appel** : télécharge le CSV INSEE (~20 Mo zippé pour la métropole) puis le met en **cache**
-(identifié par le hash de l'URL) ; les appels suivants ne re-téléchargent pas. La couverture
-géographique n'est **pas codée en dur** : elle est portée par le registre (un fichier par zone) ;
-une commune absente de tous les fichiers du millésime (ex. Mayotte en 2022) renvoie une erreur
-explicite, et une nouvelle zone disponible plus tard s'active par simple ajout au registre.
-
-## Mise à jour des données (sans réinstaller le skill)
-
-Le skill lit à chaque exécution un **registre versionné** (`dataset-registry.json`) hébergé sur
-GitHub : il prend automatiquement le **dernier millésime compatible** avec sa version. Si un
-millésime plus récent existe mais exige une version de skill supérieure (changement cassant),
-il l'indique via `dataset.maj_skill_disponible` + un `message` et **continue** avec le dernier
-compatible. Si aucun fichier n'est téléchargeable (et pas de cache), il renvoie une erreur
-demandant de mettre à jour le repo du skill.
-
-**Maintenance** : pour publier un nouveau millésime, ajouter une entrée dans
-`dataset-registry.json` (le commit sur GitHub suffit, aucune réinstallation côté utilisateur).
+Le **1er appel** télécharge le CSV INSEE (~20 Mo zippé pour la métropole) puis le met en cache ; les
+appels suivants sont immédiats. La couverture géographique couvre métropole, DOM et COM : une commune
+absente du millésime (ex. Mayotte en 2022) renvoie une erreur explicite. Le champ
+`dataset.maj_skill_disponible` signale qu'un millésime plus récent existe mais exige une version de
+skill supérieure (le skill continue alors avec le dernier compatible).
 
 ## Sortie
 
 JSON sur stdout : `{ lieu, dataset, demographie, skill }`. Le bloc `skill` (métadonnée de
-version/mise à jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur
-la décision.
+version/mise à jour du skill) est toujours présent et sans incidence sur la décision.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
 - `demographie.commune` : `population`, `menages_total`, `familles_total`, `monoparentales_total`
   (somme **complète**), `part_monoparentales_pct` (indicateur de vulnérabilité) +
@@ -88,8 +74,3 @@ Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne exp
 `"indisponible : donnée soumise au secret statistique"`) — jamais un `null` ambigu ; vérifier le
 type avant tout calcul. Une commune introuvable / hors couverture renvoie une erreur (stderr +
 code ≠ 0, ou champ `error` dans `demographie`).
-
-Contrat de sortie (défini en amont) : `contract.py` (dataclasses typées) + `contract.schema.json`
-(validé hors-ligne par `tests/test_contract.py`). Infra commune : `skills/_common/`.
-
-Détails des fichiers INSEE, colonnes et pièges : voir `references/api.md`.

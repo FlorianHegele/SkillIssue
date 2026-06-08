@@ -59,27 +59,17 @@ Par défaut : **écoles** (maternelle, primaire, collège, lycée général/tech
 dialyse, hospitalisation à domicile, maison de santé). Options : `--all-types` (tous les
 équipements des domaines C *Enseignement* et D *Santé/action sociale*), `--radius` km (filtrer
 autour du point), `--top` N (max d'équipements par liste, les plus proches d'abord ; défaut 50,
-`0` = illimité — borne la taille de sortie sur les grandes communes), `--cache-dir` (défaut :
-`data/` à la racine du repo, ou `$FLOOD_CACHE_DIR`), `--refresh` (force le re-téléchargement),
-`--timeout` s (défaut 120).
+`0` = illimité — borne la taille de sortie sur les grandes communes), `--timeout` s (défaut 120).
 
-**⚠ 1er appel** : télécharge le fichier-détail BPE national (~165 Mo zippé, **~1,4 Go décompressé
-en cache**) puis le met en **cache** (identifié par le hash de l'URL) ; les appels suivants ne
-re-téléchargent pas. Le filtrage par commune scanne le CSV (~quelques secondes).
-
-## Mise à jour des données (sans réinstaller le skill)
-
-Le skill lit à chaque exécution un **registre versionné** (`dataset-registry.json`) hébergé sur
-GitHub : il prend automatiquement le **dernier millésime compatible** avec sa version. Pour publier
-un nouveau millésime (ex. BPE25), ajouter une entrée dans `dataset-registry.json` (le commit sur
-GitHub suffit, aucune réinstallation côté utilisateur). Si un millésime plus récent exige une
-version de skill supérieure, il le signale via `dataset.maj_skill_disponible` + un `message`.
+**⚠ 1er appel** : télécharge le fichier-détail BPE national (~165 Mo zippé) puis le met en cache ;
+les appels suivants ne re-téléchargent pas. Le filtrage par commune scanne ensuite le CSV (~quelques
+secondes). Le champ `dataset.maj_skill_disponible` signale qu'un millésime plus récent existe mais
+exige une version de skill supérieure.
 
 ## Sortie
 
 JSON sur stdout : `{ lieu, dataset, vulnerabilite, skill }`. Le bloc `skill` (métadonnée de
-version/mise à jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur
-la décision.
+version/mise à jour du skill) est toujours présent et sans incidence sur la décision.
 - `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
 - `vulnerabilite.commune` : `code`, `nom`, `ecoles_count`, `sante_count` (totaux trouvés dans le
   périmètre, **avant** la limite `--top`).
@@ -104,8 +94,3 @@ type avant tout calcul. Trois cas distincts en sortie :
   valide, code 0) ;
 - commune valide **mais absente du fichier-détail BPE** → bloc `vulnerabilite.error` dans le JSON
   stdout + code retour ≠ 0 (la sortie reste un JSON exploitable).
-
-Contrat de sortie (défini en amont) : `contract.py` (dataclasses typées) + `contract.schema.json`
-(validé hors-ligne par `tests/test_contract.py`). Infra commune : `skills/_common/`.
-
-Détails des fichiers INSEE, colonnes et codes TYPEQU : voir `references/api.md`.

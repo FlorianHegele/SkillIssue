@@ -48,13 +48,12 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --lat 44.13 --lon 4.08 --radius-m 800 --limi
 ```
 
 Options : `--radius-m` mètres (défaut 1500, max 5000 — toujours scopé), `--limit` (défaut 100,
-borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25),
-`--cache-dir` (répertoire de cache, défaut `./data` ou `$FLOOD_CACHE_DIR`).
+borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25).
 
 ## Sortie
 
 JSON sur stdout : `{ lieu, accessibilite, skill }`. Le bloc `skill` (métadonnée de version/mise à
-jour du skill, alimenté par `_common`) est toujours présent et sans incidence sur la décision.
+jour du skill) est toujours présent et sans incidence sur la décision.
 - `accessibilite.rayon_m` : rayon utilisé.
 - `accessibilite.resume` : compteurs `ouvrages_total`, `gues`, `ponts`, `tunnels`,
   `passages_inferieurs`, `zones_inondables` (sur **tous** les ouvrages trouvés, même au-delà de
@@ -77,8 +76,3 @@ Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne exp
 le type avant tout calcul. Une commune introuvable / hors France, ou Overpass indisponible (avec
 miroir), renvoie une erreur (stderr + code ≠ 0) ; un secteur sans ouvrage renvoie des compteurs à
 0 et une liste vide (réponse valide, code 0).
-
-Contrat de sortie (défini en amont) : `contract.py` (dataclasses typées) + `contract.schema.json`
-(validé hors-ligne par `tests/test_contract.py`). Infra commune : `skills/_common/`.
-
-Détails Overpass (endpoint, miroir, limites, requêtes testées, tags) : voir `references/api.md`.
