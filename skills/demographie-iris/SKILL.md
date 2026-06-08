@@ -59,7 +59,7 @@ skill supérieure (le skill continue alors avec le dernier compatible).
 
 JSON sur stdout : `{ lieu, dataset, demographie, skill }`. Le bloc `skill` (métadonnée de
 version/mise à jour du skill) est toujours présent et sans incidence sur la décision.
-- `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
+- `dataset` : provenance (millésime, zone, url, depuis_cache, drapeau de MAJ).
 - `demographie.commune` : `population`, `menages_total`, `familles_total`, `monoparentales_total`
   (somme **complète**), `part_monoparentales_pct` (indicateur de vulnérabilité) +
   `part_monoparentales_base` (`{monoparentales, familles}` réellement utilisés pour ce % — seuls

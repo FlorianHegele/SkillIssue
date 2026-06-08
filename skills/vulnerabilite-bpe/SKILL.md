@@ -70,7 +70,7 @@ exige une version de skill supérieure.
 
 JSON sur stdout : `{ lieu, dataset, vulnerabilite, skill }`. Le bloc `skill` (métadonnée de
 version/mise à jour du skill) est toujours présent et sans incidence sur la décision.
-- `dataset` : provenance (millésime, zone, url, urlhash, depuis_cache, registre, drapeau de MAJ).
+- `dataset` : provenance (millésime, zone, url, depuis_cache, drapeau de MAJ).
 - `vulnerabilite.commune` : `code`, `nom`, `ecoles_count`, `sante_count` (totaux trouvés dans le
   périmètre, **avant** la limite `--top`).
 - `vulnerabilite.ecoles[]` / `vulnerabilite.sante[]` : par équipement `type_code`, `type_libelle`,
