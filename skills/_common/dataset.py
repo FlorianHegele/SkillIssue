@@ -153,6 +153,48 @@ def apply_meta(block, meta):
                             if block["message"] else meta["message"])
 
 
+# --- Éviction : borne le cache à MAX_CACHED_DATASETS CSV par skill -------------
+MAX_CACHED_DATASETS = 2  # nb max de datasets (CSV) gardés par skill (préfixe) ; au-delà, on
+                         # supprime le(s) plus vieux. Évite la croissance non bornée du cache
+                         # `data/` au fil des millésimes (un fichier-détail BPE pèse ~1,4 Go).
+
+
+def _evict_old_datasets(cache_dir, prefix, keep=MAX_CACHED_DATASETS):
+    """Garde au plus `keep` datasets `<prefix>-<hash>.csv` dans `cache_dir` ; supprime les plus
+    vieux au-delà (avec leur sidecar `.json` et un éventuel `.zip` résiduel). Tri par date de
+    téléchargement (mtime du CSV : réécrit à chaque téléchargement, intact sur un cache-hit).
+    Per-préfixe : ne touche JAMAIS au cache d'un autre skill. Retourne la liste des fichiers
+    supprimés. Appelé après un téléchargement réussi → le fichier qu'on vient d'écrire est le plus
+    récent, donc jamais évincé."""
+    try:
+        csvs = [n for n in os.listdir(cache_dir)
+                if n.startswith(prefix + "-") and n.endswith(".csv")]
+    except OSError:
+        return []
+    if len(csvs) <= keep:
+        return []
+
+    def _mtime(name):
+        try:
+            return os.path.getmtime(os.path.join(cache_dir, name))
+        except OSError:
+            return 0.0
+
+    csvs.sort(key=_mtime, reverse=True)        # plus récent d'abord
+    removed = []
+    for name in csvs[keep:]:                    # le(s) plus vieux au-delà de `keep`
+        stem = name[:-len(".csv")]              # "<prefix>-<hash>"
+        for ext in (".csv", ".json", ".zip"):
+            path = os.path.join(cache_dir, stem + ext)
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                    removed.append(path)
+                except OSError:
+                    pass
+    return removed
+
+
 class SourceConfig:
     """Configuration d'une source CSV pilotée par registre, propre à un skill.
 
@@ -332,4 +374,7 @@ class SourceConfig:
                 json.dump(meta, fh, ensure_ascii=False)
         except OSError:
             pass
+        # Cache borné : au plus MAX_CACHED_DATASETS CSV pour ce skill ; le plus vieux est supprimé.
+        # (Le CSV qu'on vient d'écrire est le plus récent → jamais évincé.)
+        _evict_old_datasets(cache_dir, self.cache_prefix)
         return csv_path, meta

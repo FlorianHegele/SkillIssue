@@ -83,6 +83,8 @@ Sondes **live** (opt-in, réseau — vérifient que les vraies API parlent encor
 - Les skills `demographie-iris` et `vulnerabilite-bpe` téléchargent à la demande de gros CSV INSEE
   (non versionnés) et les mettent en **cache local** dans `data/` (configurable via `--cache-dir`
   ou `$FLOOD_CACHE_DIR`). `data/` est ignoré par git.
+- Le cache est **borné à 2 millésimes par skill** : au-delà, le plus vieux est supprimé
+  automatiquement. Pour le vider à la main, supprimer `data/` (ou les fichiers `data/<prefix>-*`).
 - Les millésimes des datasets sont pilotés par un **registre versionné** (`dataset-registry.json`)
   servi depuis GitHub : on publie un nouveau millésime sans réinstaller le skill.
 

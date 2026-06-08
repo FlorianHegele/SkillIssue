@@ -328,6 +328,24 @@ class ContractTest(unittest.TestCase):
             ds.http_download = orig_dl
             shutil.rmtree(tmp, ignore_errors=True)
 
+    # --- cache borné : au plus 2 CSV par skill (le plus vieux évincé) ---------
+    def test_cache_keeps_at_most_two_csv_evicts_oldest(self):
+        # 3 datasets bpe-<hash>.csv de dates croissantes ; éviction à 2 -> le plus vieux saute.
+        tmp = tempfile.mkdtemp()
+        try:
+            for i, h in enumerate(("aaa", "bbb", "ccc")):
+                base = os.path.join(tmp, "bpe-%s" % h)
+                for ext in (".csv", ".json"):
+                    open(base + ext, "w").close()
+                os.utime(base + ".csv", (1000 + i, 1000 + i))   # ccc le + récent, aaa le + vieux
+            removed = ds._evict_old_datasets(tmp, "bpe", keep=2)
+            restants = sorted(n for n in os.listdir(tmp) if n.endswith(".csv"))
+            self.assertEqual(restants, ["bpe-bbb.csv", "bpe-ccc.csv"])   # le + vieux (aaa) supprimé
+            self.assertIn(os.path.join(tmp, "bpe-aaa.csv"), removed)
+            self.assertFalse(os.path.exists(os.path.join(tmp, "bpe-aaa.json")))  # sidecar aussi
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
