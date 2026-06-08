@@ -9,6 +9,7 @@ Import depuis un skill (le dossier parent `skills/` doit être sur sys.path) :
 """
 
 from . import dataset
+from . import overpass
 from .contract import Lieu, jsonable, validate
 from .dataset import SourceConfig, csv_encoding
 from .errors import SkillError, emit_error, fail
@@ -27,7 +28,7 @@ from .geo import (
 from .http import http_download, http_get_json
 
 __all__ = [
-    "dataset", "SourceConfig", "csv_encoding",
+    "dataset", "overpass", "SourceConfig", "csv_encoding",
     "Lieu", "jsonable", "validate",
     "SkillError", "emit_error", "fail",
     "FRANCE_BBOXES", "FRANCE_TIMEZONES", "GEO_API", "haversine_km", "in_france",

@@ -24,7 +24,11 @@
     "erreur": {
       "type": "object",
       "required": ["error"],
-      "properties": { "error": { "type": "string" } }
+      "additionalProperties": false,
+      "properties": {
+        "error": { "type": "string" },
+        "detail": {}
+      }
     },
     "dataset": {
       "type": "object",

@@ -9,7 +9,7 @@ Un skill = dossier `skills/<nom>/` avec `SKILL.md` + `main.py` + `contract.py` +
 
 **Contrat d'interface (défini en amont)** : pour chaque skill, on décide *d'abord* la forme de sortie à partir des besoins de décision, puis les API sont traduites vers ce contrat par des **adaptateurs** (les fonctions `collect_*`) — couche anti-corruption : les bizarreries d'API (redirections, pagination, renommages) restent confinées, la sortie reste stable. Le contrat = dataclasses typées (`contract.py`) + JSON Schema (`contract.schema.json`) validé hors-ligne sur fixtures (`tests/`). Pivot commun = `_common.Lieu` (code INSEE + lat/lon).
 
-**Tests, deux suites** : (1) `tests/test_contract.py` — **hors-ligne**, déterministe, rejoue des réponses API enregistrées (fixtures) + valide la sortie contre le schéma ; **lancé par défaut** (et par le correcteur), aucun réseau. (2) `tests/test_live.py` — **sondes live opt-in** (`RUN_LIVE=1`, sinon *skipped*) qui vérifient seulement la **structure** des vraies API (jamais une valeur) + un end-to-end validé contre le schéma. But : détecter la dérive des API (redirection, pagination, coupure de version) avant le rendu, sans fragiliser la suite normale.
+**Tests, deux suites** : (1) `tests/test_contract.py` — **hors-ligne**, déterministe, rejoue des réponses API enregistrées (fixtures) + valide la sortie contre le schéma ; **lancé par défaut** (et par le correcteur) via `python run_tests.py` à la racine — qui exécute chaque suite dans un sous-process isolé, un `pytest` global télescopant les modules `main`/`contract` homonymes —, aucun réseau. (2) `tests/test_live.py` — **sondes live opt-in** (`RUN_LIVE=1`, sinon *skipped*) qui vérifient seulement la **structure** des vraies API (jamais une valeur) + un end-to-end validé contre le schéma. But : détecter la dérive des API (redirection, pagination, coupure de version) avant le rendu, sans fragiliser la suite normale.
 
 **Donnée manquante = jamais un `null` ambigu.** Convention : un champ de mesure vaut **soit sa valeur typée, soit une chaîne explicative** disant *pourquoi* elle manque (`"indisponible : pas de mesure temps réel récente"`, `"erreur : <message>"`). Schema : `"type": ["number", "string"]`. On distingue ainsi « capteur muet » vs « API en panne » sans alourdir le cas nominal (le consommateur final est l'IA, qui reformule ; vérifier le type avant tout calcul). Même esprit pour les valeurs calculées/estimées à venir (tendance hydro, capacité d'hébergement) : valeur honnête ou chaîne expliquant le défaut, plutôt qu'un faux remplissage.
 
@@ -43,15 +43,15 @@ Un skill = dossier `skills/<nom>/` avec `SKILL.md` + `main.py` + `contract.py` +
 
 ## Robustesse
 
-- **Overpass** : valider le content-type (HTML 406/429/504 sous charge), backoff/retry, scoper par `around:`/bbox, ~2 req concurrentes (fair-use ~10k/j).
+- **Overpass** : valider le content-type (HTML 406/429/504 sous charge), backoff/retry, scoper par `around:`/bbox, ~2 req concurrentes (fair-use ~10k/j). Client mutualisé dans `_common/overpass.py` (endpoints + miroir + garde `remark` : un timeout/OOM serveur rendu en 200 + `{"elements":[],"remark":…}` ≠ secteur vide — sinon fallback silencieux).
 - **OSM ≠ aléa** : `flood_prone` trop rare → s'appuyer sur ponts/tunnels/gués ; aléa via Géorisques en option.
 - **Capacités hébergement OSM** quasi absentes → estimer (rooms×2, surface/4m²), étiqueter « estimation ».
 
 ## Repo
 
 ```
-.claude-plugin/plugin.json · CLAUDE.md · README.md · requirements.txt
-skills/_common/                ← infra partagée (http, geo/commune, errors, contract de base)
+.claude-plugin/plugin.json · CLAUDE.md · README.md · requirements.txt · run_tests.py
+skills/_common/                ← infra partagée (http, geo/commune, errors, contract, dataset, overpass)
 skills/<skill>/                ← SKILL.md · main.py · contract.py · contract.schema.json · references/ · tests/
   skills/{alerte-crue,demographie-iris,vulnerabilite-bpe,accessibilite-routes,logistique-hebergement}/
 ```

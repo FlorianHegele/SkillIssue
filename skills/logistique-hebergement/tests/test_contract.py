@@ -43,7 +43,8 @@ ALES = Lieu(commune="Alès", code_insee="30007", lat=44.128, lon=4.081)
 
 class ContractTest(unittest.TestCase):
     def setUp(self):
-        self._orig = {k: getattr(main, k) for k in ("overpass_query", "resolve_location")}
+        self._orig = {k: getattr(main, k)
+                      for k in ("overpass_query", "resolve_location", "http_get_json")}
 
     def tearDown(self):
         for k, v in self._orig.items():
@@ -211,6 +212,30 @@ class ContractTest(unittest.TestCase):
         main.overpass_query = boom
         out, code = self._run(["--commune", "Alès"])
         validate(out, SCHEMA)                          # la variante {error} reste conforme
+        self.assertIn("error", out["hebergement"])
+        self.assertEqual(code, 1)
+
+    # --- remark Overpass : timeout/OOM serveur rendu en 200 != secteur vide -------
+    def test_remark_with_error_raises_not_empty_sector(self):
+        """Un `remark` d'erreur (réponse 200 tronquée) doit lever, PAS être lu comme 0 site."""
+        with self.assertRaises(SkillError):
+            main._check_overpass_remark({"elements": [], "remark": "runtime error: Query timed out"})
+
+    def test_remark_benign_passes_through(self):
+        """Un `remark` informatif sans mot d'erreur ne doit PAS bloquer une réponse valide."""
+        data = {"elements": [], "remark": "improve performance by ..."}
+        self.assertIs(main._check_overpass_remark(data), data)
+
+    def test_remark_falls_back_to_mirror_then_errors(self):
+        """Primaire ET miroir renvoient un remark d'erreur -> overpass_query lève (pas de vide)."""
+        timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'recurse'"}
+        main.http_get_json = lambda url, params=None, timeout=20: timed_out
+        with self.assertRaises(SkillError):
+            main.overpass_query("[out:json];", 25)
+        # de bout en bout : la variante {error} reste conforme, code != 0 (pas un secteur vide)
+        main.resolve_location = lambda c, lat, lon, t: ALES
+        out, code = self._run(["--commune", "Alès"])
+        validate(out, SCHEMA)
         self.assertIn("error", out["hebergement"])
         self.assertEqual(code, 1)
 

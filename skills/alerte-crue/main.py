@@ -315,7 +315,11 @@ def run(args):
             out[name] = {"error": exc.message, "detail": exc.detail}
             erreurs += 1
         except Exception as exc:  # robustesse : une source ne doit pas tout casser
-            out[name] = {"error": "erreur inattendue : %s" % exc}
+            # On nomme le type d'exception (et on le trace sur stderr) : sans ça, un bug réel se
+            # présenterait comme un opaque « erreur inattendue », invisible au débogage.
+            sys.stderr.write("alerte-crue: exception inattendue dans la source %s (%s) : %s\n"
+                             % (name, type(exc).__name__, exc))
+            out[name] = {"error": "erreur inattendue (%s) : %s" % (type(exc).__name__, exc)}
             erreurs += 1
     # Code retour != 0 seulement si TOUTES les sources demandées ont échoué.
     return out, (1 if erreurs == len(sources) else 0)

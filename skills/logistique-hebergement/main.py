@@ -32,10 +32,11 @@ from _common import (  # noqa: E402
 )
 
 import contract as C  # noqa: E402  (module local du skill)
+from _common import overpass as _ov  # noqa: E402  (client Overpass mutualisé)
 
-# --- Endpoints (vérifiés live le 05/06/2026, voir references/api.md) ----------
-OVERPASS_PRIMARY = "https://overpass-api.de/api/interpreter"
-OVERPASS_MIRROR = "https://overpass.kumi.systems/api/interpreter"
+# --- Endpoints Overpass : client mutualisé dans _common/overpass.py -----------
+OVERPASS_PRIMARY = _ov.PRIMARY      # conservés comme noms de module (sondes live, lisibilité)
+OVERPASS_MIRROR = _ov.MIRROR
 
 DEFAULT_RADIUS_M = 2000
 MAX_RADIUS_M = 5000          # garde-fou fair-use : scoper toujours (jamais de scan national)
@@ -91,22 +92,19 @@ def build_query(lat, lon, radius_m, timeout):
         int(timeout), "\n  ".join(parts))
 
 
-def overpass_query(ql, timeout):
-    """GET du QL sur Overpass (le QL passe en query-string `?data=`), avec repli sur le miroir.
-    Lève SkillError si les deux échouent.
+# La garde anti-« faux secteur vide » (remark de timeout/OOM serveur rendu en 200) et le repli
+# primaire→miroir vivent dans _common/overpass.py — partagés à l'identique avec
+# accessibilite-routes. `out geom;` sur un rayon de 2 km renvoie de gros volumes : le timeout/OOM
+# serveur (rendu en 200) est donc d'autant plus probable, d'où l'importance de la garde `remark`.
+# On expose des wrappers de même signature qu'avant : les tests patchent main.overpass_query /
+# main.http_get_json et appellent main._check_overpass_remark.
+_check_overpass_remark = _ov.check_remark
 
-    `http_get_json` rejette déjà les pages HTML d'erreur (406/429/504 servies en 200) via la garde
-    Content-Type, et retente avec backoff. Marge de timeout HTTP au-dessus du `[timeout:]` QL.
-    """
-    http_timeout = timeout + 15
-    try:
-        return http_get_json(OVERPASS_PRIMARY, params={"data": ql}, timeout=http_timeout)
-    except SkillError as exc_primary:
-        try:
-            return http_get_json(OVERPASS_MIRROR, params={"data": ql}, timeout=http_timeout)
-        except SkillError as exc_mirror:
-            fail("Overpass indisponible (serveur principal et miroir)",
-                 detail={"principal": exc_primary.message, "miroir": exc_mirror.message})
+
+def overpass_query(ql, timeout):
+    # get_json = http_get_json (global du module), pour que le patch test de main.http_get_json
+    # reste effectif et que le repli miroir + check_remark s'appliquent.
+    return _ov.query(ql, timeout, get_json=http_get_json)
 
 
 # --- Classification d'un élément OSM ------------------------------------------

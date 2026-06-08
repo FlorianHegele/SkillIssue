@@ -26,7 +26,13 @@
     "erreur": {
       "type": "object",
       "required": ["error"],
-      "properties": { "error": { "type": "string" } }
+      "additionalProperties": false,
+      "properties": {
+        "error": { "type": "string" },
+        "detail": {},
+        "indice": { "type": "string" },
+        "troncon_le_plus_proche": {}
+      }
     },
     "vigilance": {
       "type": "object",

@@ -53,7 +53,7 @@ DEFAULT_CACHE = os.environ.get("FLOOD_CACHE_DIR") or os.path.join(_REPO_ROOT, "d
 # Socle registre→cache mutualisé (_common/dataset.py). cache_prefix/registry_cache_name DOIVENT
 # être distincts de ceux des autres skills : le cache `data/` est partagé.
 _SOURCE = SourceConfig(REGISTRY_URL, LOCAL_REGISTRY, SKILL_VERSION,
-                       cache_prefix="cfm", label="CFM", registry_cache_name="registry.json")
+                       cache_prefix="cfm", label="CFM", registry_cache_name="registry-cfm.json")
 
 # Alias pour le code de lecture du CSV (et les sondes live qui vérifient l'encodage réel).
 _csv_encoding = csv_encoding
