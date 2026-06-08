@@ -1,0 +1,14 @@
+{
+  "name": "flood-response-marketplace",
+  "owner": {
+    "name": "Florian Hegele, Mehdi Ben Smail, Lukas Willmart",
+    "url": "https://github.com/FlorianHegele"
+  },
+  "plugins": [
+    {
+      "name": "flood-response",
+      "source": "./",
+      "description": "Plugin de skills pour l'aide à la décision lors d'une crue majeure en France (100% API publiques sans clé)."
+    }
+  ]
+}

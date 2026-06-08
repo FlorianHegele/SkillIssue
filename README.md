@@ -26,7 +26,22 @@ erreurs partent sur stderr avec un code retour ≠ 0). Voir le `SKILL.md` de cha
 
 ## Installation
 
-Python 3.10+ recommandé.
+### Comme plugin Claude Code (recommandé)
+
+Depuis Claude Code, ajouter le dépôt comme marketplace puis installer le plugin :
+
+```text
+/plugin marketplace add FlorianHegele/SkillIssue
+/plugin install flood-response@flood-response-marketplace
+```
+
+Une fois installés, les 5 skills se déclenchent **automatiquement** selon la conversation
+(routage par leur `description`) — il suffit de demander à Claude une info de crue pour une
+commune française. Aucune clé ni inscription n'est nécessaire.
+
+### En local / développement (CLI)
+
+Pour lancer les scripts directement (ou contribuer/tester). Python 3.10+ recommandé.
 
 ```bash
 python3 -m venv .venv
@@ -91,7 +106,36 @@ Sondes **live** (opt-in, réseau — vérifient que les vraies API parlent encor
 ## Structure du dépôt
 
 ```
-.claude-plugin/plugin.json · CLAUDE.md · README.md · requirements.txt · run_tests.py
+.claude-plugin/plugin.json · .claude-plugin/marketplace.json
+CLAUDE.md · README.md · LICENSE · requirements.txt · run_tests.py
 skills/_common/              ← infra partagée (http, geo/commune, erreurs, contrat, dataset, overpass)
 skills/<skill>/              ← SKILL.md · main.py · contract.py · contract.schema.json · references/ · tests/
 ```
+
+## Versionnage et mises à jour
+
+Deux mécanismes de version coexistent — ils répondent à des questions différentes :
+
+- **Version du plugin** (`.claude-plugin/plugin.json`, champ `version`) : version unique pour
+  l'ensemble du plugin. C'est celle qu'utilise Claude Code pour la distribution et la mise à jour
+  via le marketplace (`/plugin update`, qui met à jour tout le plugin d'un coup).
+- **Version par skill** (champ `version:` dans chaque `SKILL.md`) : lue à l'exécution par
+  `skills/_common/version.py`, qui compare avec le `SKILL.md` distant sur GitHub et signale toute
+  mise à jour disponible **directement dans la sortie JSON** (`maj_disponible`, `message`).
+
+À connaître (les deux peuvent diverger, c'est assumé) :
+
+- `plugin.json` fait foi pour la **distribution en tant que plugin** ; les `SKILL.md` servent au
+  **contrôle de version au runtime, skill par skill**.
+- Le contrôle au runtime est surtout utile **hors Claude Code** (usage en CLI / dépôt cloné), là
+  où le mécanisme `/plugin` n'existe pas : c'est le seul signal « ce code est périmé ».
+- Selon le mode d'usage, le bon geste de mise à jour diffère : **`/plugin update`** si installé
+  comme plugin Claude Code, **re-pull du dépôt GitHub** si utilisé en CLI/cloné.
+
+## Auteurs
+
+Florian Hegele · Mehdi Ben Smail · Lukas Willmart — projet académique IUT NFC.
+
+## Licence
+
+Distribué sous licence **MIT** — voir [`LICENSE`](LICENSE).
