@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from _common import (  # noqa: E402
     SkillError, emit_error, haversine_km, http_get_json, jsonable, local_timezone,
-    resolve_location,
+    resolve_location, version,
 )
 
 import contract as C  # noqa: E402  (module local du skill)
@@ -35,6 +35,11 @@ try:
     from shapely.ops import nearest_points
 except ImportError:  # pragma: no cover - dépendance déclarée dans requirements.txt
     Point = shape = nearest_points = None
+
+SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(os.path.dirname(SKILL_DIR))
+# Répertoire de cache partagé (ici : uniquement la vérification de version du skill, pas de dataset).
+DEFAULT_CACHE = os.environ.get("FLOOD_CACHE_DIR") or os.path.join(_REPO_ROOT, "data")
 
 # --- Endpoints (vérifiés live le 06/06/2026) ---------------------------------
 VIGICRUES_GEOJSON = "https://www.vigicrues.gouv.fr/services/InfoVigiCru.geojson"
@@ -353,16 +358,23 @@ def build_parser():
                         default=SEUIL_PLUIE_MM,
                         help="Pluie : seuil mm/h en dessous duquel une heure est ignorée "
                              "(défaut %(default)s).")
+    parser.add_argument("--cache-dir", dest="cache_dir", default=DEFAULT_CACHE,
+                        help="Répertoire de cache (vérification de mise à jour du skill). "
+                             "Défaut : ./data ou $FLOOD_CACHE_DIR.")
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    # Vérification de mise à jour du skill (best-effort, jamais bloquante) : reportée dans la
+    # sortie ET sur stderr en cas d'échec, pour que l'IA propose une MAJ si le skill est périmé.
+    skill_block = version.check_update(SKILL_DIR, args.cache_dir, timeout=min(args.timeout, 10))
     try:
         out, code = run(args)
     except SkillError as exc:
-        emit_error(exc)
+        emit_error(exc, skill=skill_block)
         return 2
+    out["skill"] = skill_block
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return code

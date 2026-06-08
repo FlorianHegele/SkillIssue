@@ -1,5 +1,6 @@
 ---
 name: vulnerabilite-bpe
+version: 1.0.0
 description: >
   Trigger when user asks where the schools and health facilities of a French location are — to
   evacuate or protect them during a flood: schools (a concentration of dependent minors to

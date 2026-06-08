@@ -61,6 +61,31 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
     raise SkillError("échec de l'appel à %s" % url, detail=last_err)
 
 
+def http_get_text(url, timeout=10, retries=2):
+    """GET le corps TEXTE d'une URL (ex. SKILL.md brut sur GitHub raw, servi en text/plain).
+
+    Pendant à http_get_json pour le contenu non-JSON : pas de contrôle de Content-Type (GitHub
+    raw étiquette les .md en text/plain) et timeout/retries courts car c'est un check best-effort
+    non bloquant (vérification de version). Lève SkillError si tout échoue — l'appelant
+    (version.check_update) l'avale et dégrade gracieusement.
+    """
+    last_err = None
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, timeout=timeout, headers={"User-Agent": _USER_AGENT})
+            if resp.status_code not in _OK_STATUS:
+                last_err = "HTTP %s" % resp.status_code
+            else:
+                # GitHub raw n'annonce pas toujours le charset ; les SKILL.md sont en UTF-8.
+                resp.encoding = resp.encoding or "utf-8"
+                return resp.text
+        except requests.RequestException as exc:
+            last_err = str(exc)
+        if attempt < retries - 1:
+            time.sleep(0.8 * (attempt + 1))  # backoff linéaire
+    raise SkillError("échec de l'appel à %s" % url, detail=last_err)
+
+
 def http_download(url, dest_path, timeout=60, retries=3, expect_content_type=None):
     """Télécharge un fichier binaire (ex. zip de dataset) vers `dest_path`.
 

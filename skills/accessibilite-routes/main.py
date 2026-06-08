@@ -26,10 +26,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from _common import (  # noqa: E402
     SkillError, emit_error, fail, haversine_km, http_get_json, jsonable, resolve_location,
+    version,
 )
 
 import contract as C  # noqa: E402  (module local du skill)
 from _common import overpass as _ov  # noqa: E402  (client Overpass mutualisé)
+
+SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(os.path.dirname(SKILL_DIR))
+# Répertoire de cache partagé (ici : uniquement la vérification de version du skill, pas de dataset).
+DEFAULT_CACHE = os.environ.get("FLOOD_CACHE_DIR") or os.path.join(_REPO_ROOT, "data")
 
 # --- Endpoints Overpass : client mutualisé dans _common/overpass.py -----------
 OVERPASS_PRIMARY = _ov.PRIMARY      # conservés comme noms de module (sondes live, lisibilité)
@@ -242,16 +248,23 @@ def build_parser():
                              "%(default)s). Le résumé compte tous les ouvrages trouvés.")
     parser.add_argument("--timeout", type=float, default=25.0,
                         help="Timeout Overpass en secondes. Défaut 25.")
+    parser.add_argument("--cache-dir", dest="cache_dir", default=DEFAULT_CACHE,
+                        help="Répertoire de cache (vérification de mise à jour du skill). "
+                             "Défaut : ./data ou $FLOOD_CACHE_DIR.")
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    # Vérification de mise à jour du skill (best-effort, jamais bloquante) : reportée dans la
+    # sortie ET sur stderr en cas d'échec, pour que l'IA propose une MAJ si le skill est périmé.
+    skill_block = version.check_update(SKILL_DIR, args.cache_dir, timeout=min(args.timeout, 10))
     try:
         out, code = run(args)
     except SkillError as exc:
-        emit_error(exc)
+        emit_error(exc, skill=skill_block)
         return 2
+    out["skill"] = skill_block
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return code

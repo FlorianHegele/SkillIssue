@@ -1,5 +1,6 @@
 ---
 name: accessibilite-routes
+version: 1.0.0
 description: >
   Trigger when user asks which roads or crossings around a French location risk being cut off by
   a flood — to plan access and evacuation routes. Identifies flood-vulnerable structures: fords

@@ -1,5 +1,6 @@
 ---
 name: logistique-hebergement
+version: 1.0.0
 description: >
   Trigger when user asks where to shelter or house flood victims around a French location — to plan
   emergency accommodation away from the flooded zone. Lists requisitionable sites (hotels, gyms /

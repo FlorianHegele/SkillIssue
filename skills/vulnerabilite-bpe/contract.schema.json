@@ -6,10 +6,25 @@
   "additionalProperties": false,
   "properties": {
     "lieu": { "$ref": "#/$defs/lieu" },
+    "skill": { "$ref": "#/$defs/skill" },
     "dataset": { "$ref": "#/$defs/dataset" },
     "vulnerabilite": { "oneOf": [ { "$ref": "#/$defs/vulnerabilite" }, { "$ref": "#/$defs/erreur" } ] }
   },
   "$defs": {
+    "skill": {
+      "type": "object",
+      "required": ["nom", "version", "version_distante", "maj_disponible", "verifie_le", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "nom": { "type": ["string", "null"] },
+        "version": { "type": "string" },
+        "version_distante": { "type": "string" },
+        "maj_disponible": { "type": "boolean" },
+        "message": { "type": ["string", "null"] },
+        "verifie_le": { "type": ["string", "null"] },
+        "source": { "enum": ["reseau", "cache", "local-seul"] }
+      }
+    },
     "lieu": {
       "type": "object",
       "required": ["commune", "code_insee", "lat", "lon"],

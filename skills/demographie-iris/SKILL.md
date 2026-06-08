@@ -1,5 +1,6 @@
 ---
 name: demographie-iris
+version: 1.0.0
 description: >
   Trigger when user asks about population, demographics, households, families, or vulnerable
   residents of a French location at neighborhood (IRIS) granularity — how many people or

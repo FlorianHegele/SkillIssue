@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from _common import (  # noqa: E402
     SkillError, SourceConfig, csv_encoding, dataset as ds, emit_error, fail, haversine_km,
-    jsonable, resolve_location, reverse_commune,
+    jsonable, resolve_location, reverse_commune, version,
 )
 
 import contract as C  # noqa: E402  (module local du skill)
@@ -44,9 +44,12 @@ import contract as C  # noqa: E402  (module local du skill)
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Version & registre -------------------------------------------------------
-# Incrémenter SKILL_VERSION en cas de changement cassant des colonnes lues ; le registre
-# utilise min_skill_version pour qu'un vieux skill ne tente pas de lire un schéma incompatible.
-SKILL_VERSION = "1.0.0"
+# La version du skill vient du frontmatter de SKILL.md (source unique de vérité, aussi comparée à
+# la version distante GitHub par version.check_update). Le registre utilise min_skill_version pour
+# qu'un vieux skill ne tente pas de lire un schéma de colonnes incompatible. "0.0.0" en repli si le
+# frontmatter est illisible (n'exclut alors aucun millésime ; cas non nominal).
+_, SKILL_VERSION = version.read_local_version(SKILL_DIR)
+SKILL_VERSION = SKILL_VERSION or "0.0.0"
 REGISTRY_URL = ("https://raw.githubusercontent.com/FlorianHegele/SkillIssue/main/"
                 "skills/vulnerabilite-bpe/dataset-registry.json")
 LOCAL_REGISTRY = os.path.join(SKILL_DIR, "dataset-registry.json")
@@ -345,11 +348,15 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    # Vérification de mise à jour du skill (best-effort, jamais bloquante) : reportée dans la
+    # sortie ET sur stderr en cas d'échec, pour que l'IA propose une MAJ si le skill est périmé.
+    skill_block = version.check_update(SKILL_DIR, args.cache_dir, timeout=min(args.timeout, 10))
     try:
         out, code = run(args)
     except SkillError as exc:
-        emit_error(exc)
+        emit_error(exc, skill=skill_block)
         return 2
+    out["skill"] = skill_block
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return code

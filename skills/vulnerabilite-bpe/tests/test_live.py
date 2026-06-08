@@ -34,6 +34,16 @@ ALES_LAT, ALES_LON = 44.125, 4.0905
 @unittest.skipUnless(LIVE, "sondes live désactivées (mettre RUN_LIVE=1 pour activer)")
 class LiveProbes(unittest.TestCase):
 
+    def test_remote_skillmd_has_parsable_version(self):
+        """Le SKILL.md distant (GitHub main) doit exposer un `version:` parsable : détecte la
+        dérive (frontmatter sans version après le rendu). N.B. tant que le commit ajoutant
+        `version:` n'est pas poussé sur main, version_distante reste « indisponible »."""
+        import tempfile
+        from _common import version
+        block = version.check_update(SKILL_DIR, tempfile.mkdtemp(), timeout=10)
+        self.assertRegex(block["version_distante"], r"^\d+\.\d+",
+                         "SKILL.md distant sans version parsable : %s" % block["version_distante"])
+
     def test_geo_api_resolves_ales(self):
         loc = resolve_commune("Alès")
         self.assertEqual(loc.code_insee, "30007")

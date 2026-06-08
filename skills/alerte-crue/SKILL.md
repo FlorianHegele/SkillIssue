@@ -1,5 +1,6 @@
 ---
 name: alerte-crue
+version: 1.0.0
 description: >
   Trigger when user asks about flood risk, river flooding, or rising water for a French
   location — alert color, real-time water level/discharge, or rainfall forecast. Mots-clés FR :
