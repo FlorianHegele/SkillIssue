@@ -11,6 +11,7 @@ une valeur (elles changent), seulement la STRUCTURE, plus une validation end-to-
 Si l'URL du registre est morte, c'est le signal qu'il faut maintenir dataset-registry.json.
 """
 
+import csv
 import os
 import sys
 import tempfile
@@ -61,9 +62,12 @@ class LiveProbes(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 csv_path, meta = main.dataset_path(entry, file_entry, tmp, True, 300)
                 self.assertGreater(os.path.getsize(csv_path), 0)
-                with open(csv_path, "rb") as fh:
-                    head = fh.readline().decode(main._csv_encoding(csv_path), "replace")
-                cols = head.strip().split(main.CSV_SEP)
+                # Lire l'en-tête EXACTEMENT comme le skill (csv.reader) : la BPE 2024 cite ses
+                # colonnes ("DEPCOM";"TYPEQU";…) — csv.reader retire les guillemets, un split
+                # manuel les laisserait et ferait échouer la vérification à tort.
+                enc = main._csv_encoding(csv_path)
+                with open(csv_path, encoding=enc, errors="replace", newline="") as fh:
+                    cols = next(csv.reader(fh, delimiter=main.CSV_SEP), [])
                 for col in ("DEPCOM", "TYPEQU", "LATITUDE", "LONGITUDE"):
                     self.assertIn(col, cols)
 

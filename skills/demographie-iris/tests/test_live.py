@@ -11,6 +11,7 @@ une valeur (elles changent), seulement la STRUCTURE, plus une validation end-to-
 Si une URL du registre est morte, c'est le signal qu'il faut maintenir dataset-registry.json.
 """
 
+import csv
 import os
 import sys
 import tempfile
@@ -61,11 +62,15 @@ class LiveProbes(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 csv_path, meta = main.dataset_path(entry, file_entry, tmp, True, 120)
                 self.assertTrue(os.path.getsize(csv_path) > 0)
-                with open(csv_path, "rb") as fh:
-                    head = fh.readline().decode(main._csv_encoding(csv_path), "replace")
-                self.assertIn("IRIS", head)
-                self.assertIn("COM", head)
-                prefix = main.resolve_prefix(head.strip().split(main.CSV_SEP), entry)
+                # Lire l'en-tête comme le skill (csv.reader, quote-aware) : robuste si un
+                # millésime cite ses colonnes (cf. BPE 2024). Un split manuel laisserait les
+                # guillemets et ferait échouer resolve_prefix à tort.
+                enc = main._csv_encoding(csv_path)
+                with open(csv_path, encoding=enc, errors="replace", newline="") as fh:
+                    cols = next(csv.reader(fh, delimiter=main.CSV_SEP), [])
+                self.assertIn("IRIS", cols)
+                self.assertIn("COM", cols)
+                prefix = main.resolve_prefix(cols, entry)
                 self.assertRegex(prefix, r"^C\d{2}_$")
 
     def test_end_to_end_metropole_conforms(self):
