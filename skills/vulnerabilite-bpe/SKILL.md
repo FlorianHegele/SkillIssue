@@ -35,6 +35,10 @@ Pour la **capacité d'accueil** des sinistrés (hôtels, gymnases, salles réqui
 
 ## Comment lancer
 
+> **Premier lancement** : si les dépendances Python manquent, l'environnement (`.venv` local au
+> plugin) est créé et installé automatiquement, sans toucher au Python système (PEP 668-safe).
+> Les lancements suivants sont immédiats. Désactivable via `FLOOD_NO_BOOTSTRAP=1`.
+
 Localisation **obligatoire** (aucun lieu par défaut) : `--commune` (nom ou code INSEE) **ou**
 `--lat`/`--lon` (géocodage inverse vers la commune).
 

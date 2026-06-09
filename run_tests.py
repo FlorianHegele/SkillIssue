@@ -47,6 +47,10 @@ def main(argv=None):
         return 1
 
     env = dict(os.environ)
+    # Les tests s'exécutent dans l'environnement courant (déjà équipé) : on désactive l'auto-
+    # bootstrap des skills pour garder la suite hors-ligne et déterministe (aucune création de
+    # venv ni accès réseau déclenchés par `import main`). Cf. skills/_bootstrap.py.
+    env["FLOOD_NO_BOOTSTRAP"] = "1"
     if live:
         env["RUN_LIVE"] = "1"
 

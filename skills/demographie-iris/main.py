@@ -28,6 +28,12 @@ import traceback
 # Le dossier parent `skills/` doit être sur sys.path pour importer le paquet _common.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Amorce l'environnement (venv local + dépendances) AVANT tout import tiers. Au 1er lancement,
+# crée `.venv` et re-exécute dedans ; ensuite, no-op. Voir skills/_bootstrap.py.
+from _bootstrap import ensure_runtime  # noqa: E402
+
+ensure_runtime()
+
 from _common import (  # noqa: E402
     GEO_API, SkillError, SourceConfig, csv_encoding, dataset as ds, emit_error, fail,
     http_get_json, jsonable, resolve_location, reverse_commune, version,

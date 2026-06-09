@@ -39,6 +39,14 @@ Une fois installés, les 5 skills se déclenchent **automatiquement** selon la c
 (routage par leur `description`) — il suffit de demander à Claude une info de crue pour une
 commune française. Aucune clé ni inscription n'est nécessaire.
 
+> **Aucune installation de dépendances à faire à la main.** Au **tout premier lancement** d'un
+> skill, si les dépendances Python manquent, le plugin crée automatiquement un environnement
+> virtuel **local au plugin** (`.venv/`) et y installe `requirements.txt`, puis s'y ré-exécute —
+> **sans jamais toucher au Python système** (compatible avec les distributions « externally
+> managed » / PEP 668 comme Arch, Debian, Ubuntu). `uv` est utilisé s'il est présent (plus
+> rapide), sinon le module `venv` de la stdlib. Les lancements suivants sont instantanés. Pour
+> désactiver ce comportement (environnement déjà gréé), exporter `FLOOD_NO_BOOTSTRAP=1`.
+
 ### En local / développement (CLI)
 
 Pour lancer les scripts directement (ou contribuer/tester). Python 3.10+ recommandé.
@@ -47,6 +55,10 @@ Pour lancer les scripts directement (ou contribuer/tester). Python 3.10+ recomma
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
+
+Cette étape est **facultative pour un simple usage** : lancé directement avec `python3`, un skill
+crée et provisionne `.venv/` tout seul au premier appel (voir l'encadré plus haut). La créer à la
+main reste utile en développement (contrôle de l'interpréteur, lancement des tests).
 
 Dépendances : `requests` (HTTP, requis), `shapely` (géométrie Vigicrues, utilisé par
 `alerte-crue`), `jsonschema` (validation des contrats, surtout en test).
