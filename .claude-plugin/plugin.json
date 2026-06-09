@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "flood-response",
   "displayName": "Flood Response — aide à la décision en crue",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Aide à la décision lors d'une crue majeure en France : vigilance, hydrométrie temps réel, prévision pluie, démographie, vulnérabilité des équipements, accessibilité routière et hébergement d'urgence. 100% API publiques sans clé.",
   "author": {
     "name": "Florian Hegele, Mehdi Ben Smail, Lukas Willmart"
