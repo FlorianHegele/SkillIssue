@@ -13,7 +13,8 @@ aucune dépendance n'est installée.
 
 Garde-fous :
   - jamais d'écriture sur stdout (réservé au JSON du skill) — tout va sur stderr ;
-  - re-exec une seule fois (détection « on tourne déjà dans le venv ») ;
+  - un venv INCOMPLET (deps partielles) est réparé, jamais accepté en silence ;
+  - nombre de re-exec borné par un compteur (jamais de boucle) ; échec persistant = erreur dure ;
   - opt-out par FLOOD_NO_BOOTSTRAP=1 (CI, venv déjà activé à la main) ;
   - échec d'installation = message explicite sur stderr + code retour ≠ 0 (pas de fallback).
 """
@@ -25,9 +26,10 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_DIR = os.path.join(_REPO_ROOT, ".venv")
 _REQUIREMENTS = os.path.join(_REPO_ROOT, "requirements.txt")
-# Sentinelle d'environnement : évite toute boucle de re-exec si jamais la détection par chemin
-# échoue (montages exotiques, liens symboliques).
-_GUARD = "FLOOD_BOOTSTRAPPED"
+# Compteur de tentatives propagé via l'environnement aux processus re-exécutés : borne dure
+# contre toute boucle (venv qui resterait incomplet après réparation -> erreur explicite).
+_GUARD = "FLOOD_BOOTSTRAP_ATTEMPTS"
+_MAX_ATTEMPTS = 2
 # Modules tiers du runtime (cf. requirements.txt) dont la présence rend tout bootstrap inutile.
 # `jsonschema` n'y figure pas : il n'est utilisé qu'en test (import paresseux dans contract.py).
 _RUNTIME_MODULES = ("requests", "shapely")
@@ -55,13 +57,6 @@ def _venv_python(venv_dir):
     return os.path.join(venv_dir, "bin", "python")
 
 
-def _same_path(a, b):
-    try:
-        return os.path.realpath(a) == os.path.realpath(b)
-    except OSError:
-        return False
-
-
 def _log(msg):
     """Message de progression sur stderr (stdout est réservé au JSON du skill)."""
     sys.stderr.write("[flood-response/bootstrap] %s\n" % msg)
@@ -73,60 +68,89 @@ def _run(cmd):
     subprocess.run(cmd, check=True, stdout=sys.stderr, stderr=sys.stderr)
 
 
-def _create_venv(venv_python):
-    """Crée `.venv` et y installe requirements.txt. Préfère `uv` s'il est présent."""
+def _install_requirements(venv_python):
+    """(Ré)installe requirements.txt DANS le venv. Idempotent (pip ignore le déjà-satisfait)."""
+    from shutil import which
+
+    if which("uv"):
+        _run(["uv", "pip", "install", "--python", venv_python, "-r", _REQUIREMENTS])
+    else:
+        _run([venv_python, "-m", "pip", "install", "--upgrade", "pip", "-q"])
+        _run([venv_python, "-m", "pip", "install", "-q", "-r", _REQUIREMENTS])
+
+
+def _provision_venv(venv_python):
+    """Garantit un venv présent ET pourvu de requirements.txt. Préfère `uv` s'il est présent.
+
+    Crée le venv s'il manque, puis (ré)installe les dépendances — ce qui RÉPARE aussi un venv
+    préexistant mais incomplet (cas d'un `pip install` partiel ou d'un venv antérieur à l'ajout
+    d'une dépendance).
+    """
     if not os.path.exists(_REQUIREMENTS):
         raise RuntimeError("requirements.txt introuvable (%s)" % _REQUIREMENTS)
 
     from shutil import which
 
-    if which("uv"):
-        _log("uv détecté — création du venv et installation des dépendances…")
-        _run(["uv", "venv", _VENV_DIR])
-        _run(["uv", "pip", "install", "--python", venv_python, "-r", _REQUIREMENTS])
+    if not os.path.exists(venv_python):
+        if which("uv"):
+            _log("uv détecté — création du venv…")
+            _run(["uv", "venv", _VENV_DIR])
+        else:
+            _log("création du venv (%s) via python -m venv…" % _VENV_DIR)
+            _run([sys.executable, "-m", "venv", _VENV_DIR])
     else:
-        _log("création du venv (%s) via python -m venv…" % _VENV_DIR)
-        _run([sys.executable, "-m", "venv", _VENV_DIR])
-        _log("installation des dépendances (requirements.txt)…")
-        _run([venv_python, "-m", "pip", "install", "--upgrade", "pip", "-q"])
-        _run([venv_python, "-m", "pip", "install", "-q", "-r", _REQUIREMENTS])
+        _log("venv présent mais dépendances incomplètes — réparation…")
+
+    _log("installation des dépendances (requirements.txt)…")
+    _install_requirements(venv_python)
     _log("environnement prêt.")
 
 
 def ensure_runtime():
-    """Garantit que le skill tourne dans le venv local (le crée au 1er appel), puis re-exec.
+    """Garantit que les dépendances runtime sont disponibles, sinon provisionne le venv et re-exec.
 
-    Idempotent : ne fait rien si on est déjà dans le venv ou si FLOOD_NO_BOOTSTRAP=1.
+    Ne fait rien si les deps sont déjà importables (venv actif, deps système, 2e appel après
+    re-exec) ou si FLOOD_NO_BOOTSTRAP=1. Un venv incomplet est réparé (réinstallation) plutôt
+    qu'accepté ; un échec persistant après réparation lève une erreur dure (jamais de boucle).
     """
     if os.environ.get("FLOOD_NO_BOOTSTRAP"):
         return
 
-    # Cas le plus courant : les dépendances sont déjà là (venv actif, deps système, ou 2e appel
-    # après re-exec). On ne touche à rien — pas de venv, pas de magie.
+    # Cas le plus courant : les dépendances sont déjà là (venv actif, deps système, ou appel
+    # postérieur au re-exec). On ne touche à rien — pas de venv, pas de magie.
     if _deps_present():
         return
 
+    # Dépendances manquantes dans CET interpréteur. On a déjà tenté le maximum ? Erreur dure :
+    # le venv reste incomplet malgré (ré)installation — inutile de re-exécuter en boucle.
+    attempts = int(os.environ.get(_GUARD, "0") or "0")
+    if attempts >= _MAX_ATTEMPTS:
+        _log(
+            "dépendances runtime toujours absentes après %d tentative(s) de provisionnement."
+            % attempts
+        )
+        _log(
+            "Pistes : vérifier l'accès réseau (PyPI) et l'installation manuelle : "
+            "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+        )
+        sys.exit(1)
+
     venv_python = _venv_python(_VENV_DIR)
+    try:
+        _provision_venv(venv_python)
+    except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
+        _log("ÉCHEC de la préparation de l'environnement : %s" % exc)
+        _log(
+            "Pistes : vérifier l'accès réseau (PyPI), que le module venv est installé "
+            "(paquet python3-venv sur Debian/Ubuntu), ou créer le venv à la main : "
+            "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+        )
+        sys.exit(1)
 
-    # Déjà à l'intérieur du venv (par chemin OU par sentinelle) : rien à faire.
-    if _same_path(sys.executable, venv_python) or os.environ.get(_GUARD):
-        return
-
-    if not os.path.exists(venv_python):
-        try:
-            _create_venv(venv_python)
-        except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
-            _log("ÉCHEC de la préparation de l'environnement : %s" % exc)
-            _log(
-                "Pistes : vérifier l'accès réseau (PyPI), que le module venv est installé "
-                "(paquet python3-venv sur Debian/Ubuntu), ou créer le venv à la main : "
-                "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
-            )
-            sys.exit(1)
-
-    # Re-exécute le même script avec l'interpréteur du venv (où les dépendances existent).
+    # Re-exécute le même script avec l'interpréteur du venv (où les dépendances existent
+    # désormais), en incrémentant le compteur de tentatives.
     env = dict(os.environ)
-    env[_GUARD] = "1"
+    env[_GUARD] = str(attempts + 1)
     try:
         os.execve(venv_python, [venv_python] + sys.argv, env)
     except OSError as exc:  # pragma: no cover - cas dégénéré (venv corrompu)
