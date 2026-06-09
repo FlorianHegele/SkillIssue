@@ -13,12 +13,20 @@ Détails vérifiés en live (5 juin 2026) sur `overpass-api.de`. Sans clé. OSM 
 - Statut/slots : `https://overpass-api.de/api/status` (vérifier avant rafale).
 - **Sans clé** (identification par IP). **2 requêtes concurrentes max / IP** ; fair-use ~**10 000 req/j**,
   < ~1 Go/j. Timeout défaut 180 s, RAM défaut 512 MiB.
-- Erreurs : `429` rate limit · `504` ressources dépassées · `406`/HTML sous charge.
+- Erreurs : `429` rate limit · `504` « dispatcher too busy » · `406`/HTML sous charge. Ces statuts
+  sont **transitoires** (saturation d'instance publique, indépendante du poids de la requête : même
+  `out count;` peut renvoyer 504). Le client HTTP les **retente** avec backoff exponentiel et
+  remonte le vrai code HTTP (message « temporairement saturé, réessayer ») ; les 4xx définitifs
+  (400/404/406) échouent vite, sans re-essai.
 - **Piège `remark`** : un timeout / dépassement mémoire *côté serveur* renvoie **HTTP 200 + JSON
   valide** avec `{"elements": [], "remark": "runtime error: Query timed out…"}`. Le skill détecte
-  ce `remark` d'erreur (`main._check_overpass_remark`), tente le miroir, puis lève une erreur
-  explicite — sinon une requête tronquée serait lue à tort comme « secteur sans aucun ouvrage ».
-- Mirror de repli : `https://overpass.kumi.systems/api/interpreter`.
+  ce `remark` d'erreur (`main._check_overpass_remark`) puis lève une erreur explicite — sinon une
+  requête tronquée serait lue à tort comme « secteur sans aucun ouvrage ».
+- **Repli miroir** : aucun par défaut. Les miroirs gratuits sont morts (kumi.systems), injoignables
+  (private.coffee), suspendus (maps.mail.ru → 403) ou **régionaux** (overpass.osm.ch = Suisse, renvoie
+  0 pour la France = faux secteur vide INTERDIT). Un miroir **global vérifié** peut être fourni via
+  l'env `FLOOD_OVERPASS_MIRROR` : il est alors tenté une seule fois, en timeout court. On s'appuie
+  sinon sur le retry du primaire (les 504/429 d'Overpass sont transitoires).
 - **Pièges** : éviter les noms accentués dans `area[...]` (→ 406) ; préférer **bbox `(s,o,n,e)`** ou
   **`(around:rayon_m,lat,lon)`**. `out count;` correct (pas `.x out count;`). Ne jamais scanner à
   l'échelle nationale sur clés non indexées (`ford`, `flood_prone` → timeout) : toujours scoper.
@@ -102,3 +110,28 @@ Voir `contract.py` / `contract.schema.json`. Forme : `{ lieu, accessibilite }`.
   filtrés ainsi.
 - Mesure absente (way sans position) = **chaîne explicative**, jamais `null` ; rejetée en fin de
   tri. `--radius-m` borné à 5000 m (scoping fair-use). `--limit` >= 0 (0 = résumé seul).
+
+---
+
+## Piste d'amélioration : extraits Geofabrik hors-ligne (plan B)
+
+Le correctif de robustesse (retry exponentiel 504/429, retrait du miroir mort, remontée du vrai
+code HTTP) garde une dépendance à une **instance Overpass publique qui sature par intermittence**.
+Si cette fragilité redevient bloquante, la solution de fond — **non implémentée** — est d'abandonner
+l'Overpass temps réel au profit d'**extraits OSM départementaux Geofabrik (`.pbf`)** téléchargés à
+la demande + cache local, requêtés **hors-ligne** avec `pyosmium` ou `pyrosm`.
+
+- **Pourquoi** : élimine la cause racine (plus de 504/429, plus de dépendance réseau au moment de
+  la requête), reproductible pour le correcteur, toujours **sans clé**. La donnée recherchée
+  (`ford`/`bridge`/`tunnel`/`layer`/`flood_prone`) n'existe que dans OSM — Google Maps & co. sont
+  exclus (clé + CB obligatoires, CGU anti-extraction, et n'exposent pas ces tags).
+- **Comment** : réutiliser le pattern déjà en place dans `demographie-iris` / `vulnerabilite-bpe`
+  (`_common/dataset.py` : téléchargement à la demande + cache borné `MAX_CACHED_DATASETS`). Extrait
+  départemental ≈ 50–200 Mo (ordre de grandeur du CSV IRIS ~21 Mo déjà accepté). Nouvelle dépendance
+  `pyosmium`/`pyrosm` dans `requirements.txt`.
+- **Coût** : nouveau chemin de code + ~100 Mo au 1er appel par département (puis cache).
+
+Constat sur les instances publiques (9 juin 2026) : `overpass-api.de` seul global fiable mais
+saturé par intermittence ; `kumi.systems` mort ; `private.coffee` injoignable ; `maps.mail.ru`
+suspendu (403 depuis mars 2026) ; `overpass.osm.ch` régional (Suisse → 0 pour la France) ;
+`geofabrik` payant.

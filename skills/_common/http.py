@@ -17,9 +17,34 @@ _OK_STATUS = (200, 206)
 _USER_AGENT = "flood-response/0.1 (academic project)"
 _DL_CHUNK = 1 << 20  # 1 Mio : on streame (datasets ~20 Mo), jamais tout en RAM
 
+# Statuts TRANSITOIRES : serveur temporairement saturé / indisponible — un re-essai espacé
+# a de bonnes chances d'aboutir (Overpass public sert des 429 « rate-limit » et 504 « dispatcher
+# too busy » sous charge ; cf. rapport accessibilite-routes). À distinguer des 4xx définitifs
+# (400/404/406), qu'il est inutile de retenter.
+_TRANSIENT_STATUS = (429, 500, 502, 503, 504)
+_BACKOFF_BASE = 1.0   # s ; backoff EXPONENTIEL entre essais : 1, 2, 4… (laisse respirer un serveur saturé)
+_BACKOFF_MAX = 20.0   # s ; plafond d'une attente entre deux essais
+
+
+def _retry_after_seconds(raw):
+    """Secondes d'attente demandées par l'en-tête `Retry-After` (forme « nombre de secondes »),
+    ou None si absent/non numérique. La forme « date HTTP » (rare sur ces endpoints) est ignorée."""
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw.strip()))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
 
 def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
     """GET JSON avec retry/backoff. Lève SkillError si tout échoue.
+
+    Backoff EXPONENTIEL (et honore `Retry-After` s'il est fourni) sur les statuts transitoires
+    (429/5xx), où un re-essai espacé aboutit souvent ; échec IMMÉDIAT sur un 4xx définitif
+    (retenter un 400/404/406 ne changerait rien — on échoue vite plutôt que d'attendre). Le code
+    HTTP du dernier échec est conservé dans la SkillError (`status`) pour que l'appelant distingue
+    « temporairement saturé, réessayer » de « réellement indisponible ».
 
     `require_json` (défaut True) rejette une réponse dont le Content-Type n'annonce pas du
     JSON — garde-fou contre les pages HTML d'erreur servies en 200 (Vigicrues/Hub'Eau).
@@ -27,7 +52,9 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
     (ex. GitHub raw sert les .json en text/plain) : le parsing JSON reste validé.
     """
     last_err = None
+    last_status = None
     for attempt in range(retries):
+        retry_after = None
         try:
             resp = requests.get(
                 url, params=params, timeout=timeout,
@@ -36,6 +63,7 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
             ctype = resp.headers.get("Content-Type", "")
             if resp.status_code not in _OK_STATUS:
                 last_err = "HTTP %s" % resp.status_code
+                last_status = resp.status_code
                 # Beaucoup d'API (OpenMeteo, geo.api...) décrivent la cause dans un corps JSON
                 # sur un 4xx (ex. {"reason": "No data is available for this location"}). On la
                 # joint au detail plutôt que de la jeter : un "HTTP 400" seul n'est pas actionnable.
@@ -48,17 +76,26 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
                             last_err += " — %s" % reason
                     except ValueError:
                         pass
+                # 4xx définitif (hors 429) : retenter est inutile -> échec immédiat.
+                if resp.status_code not in _TRANSIENT_STATUS:
+                    break
+                retry_after = _retry_after_seconds(resp.headers.get("Retry-After"))
             elif require_json and "json" not in ctype.lower():
                 last_err = "réponse non-JSON (Content-Type: %s)" % (ctype or "inconnu")
+                last_status = None
             else:
                 return resp.json()
         except requests.RequestException as exc:
             last_err = str(exc)
+            last_status = None
         except ValueError as exc:
             last_err = "JSON invalide : %s" % exc
+            last_status = None
         if attempt < retries - 1:
-            time.sleep(0.8 * (attempt + 1))  # backoff linéaire
-    raise SkillError("échec de l'appel à %s" % url, detail=last_err)
+            # Délai serveur (Retry-After) s'il est fourni, sinon backoff exponentiel plafonné.
+            delay = retry_after if retry_after is not None else _BACKOFF_BASE * (2 ** attempt)
+            time.sleep(min(delay, _BACKOFF_MAX))
+    raise SkillError("échec de l'appel à %s" % url, detail=last_err, status=last_status)
 
 
 def http_get_text(url, timeout=10, retries=2):

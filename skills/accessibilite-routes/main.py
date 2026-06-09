@@ -44,8 +44,8 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(SKILL_DIR))
 DEFAULT_CACHE = os.environ.get("FLOOD_CACHE_DIR") or os.path.join(_REPO_ROOT, "data")
 
 # --- Endpoints Overpass : client mutualisé dans _common/overpass.py -----------
-OVERPASS_PRIMARY = _ov.PRIMARY      # conservés comme noms de module (sondes live, lisibilité)
-OVERPASS_MIRROR = _ov.MIRROR
+OVERPASS_PRIMARY = _ov.PRIMARY      # conservé comme nom de module (sondes live, lisibilité)
+OVERPASS_MIRROR = _ov.MIRROR        # None par défaut : voir _common/overpass.py (FLOOD_OVERPASS_MIRROR)
 
 DEFAULT_RADIUS_M = 1500
 MAX_RADIUS_M = 5000          # garde-fou fair-use : scoper toujours (clés ford/flood non indexées)

@@ -77,6 +77,6 @@ réduit pour recentrer, plutôt que de présenter la liste comme exhaustive.
 
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `"indisponible : position absente de la réponse Overpass"`) — jamais un `null` ambigu ; vérifier
-le type avant tout calcul. Une commune introuvable / hors France, ou Overpass indisponible (avec
-miroir), renvoie une erreur (stderr + code ≠ 0) ; un secteur sans ouvrage renvoie des compteurs à
-0 et une liste vide (réponse valide, code 0).
+le type avant tout calcul. Une commune introuvable / hors France, ou Overpass indisponible après
+re-essais, renvoie une erreur (stderr + code ≠ 0 ; si transitoire, message « réessayer dans ~1 min ») ;
+un secteur sans ouvrage renvoie des compteurs à 0 et une liste vide (réponse valide, code 0).

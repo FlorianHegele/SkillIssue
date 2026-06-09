@@ -106,5 +106,6 @@ jour du skill) est toujours présent et sans incidence sur la décision.
 Reformuler ensuite en langage naturel. Une mesure absente vaut une **chaîne explicative** (ex.
 `capacite = "indisponible : aucune donnée de capacité ni surface exploitable"`) — jamais un `null`
 ambigu ; vérifier le type avant tout calcul. Une commune introuvable / hors France, ou Overpass
-indisponible (avec miroir), renvoie une erreur (stderr + code ≠ 0) ; un secteur sans site renvoie
-des compteurs à 0 et une liste vide (réponse valide, code 0).
+indisponible après re-essais, renvoie une erreur (stderr + code ≠ 0 ; si transitoire, message
+« réessayer dans ~1 min ») ; un secteur sans site renvoie des compteurs à 0 et une liste vide
+(réponse valide, code 0).

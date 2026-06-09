@@ -184,18 +184,42 @@ class ContractTest(unittest.TestCase):
         data = {"elements": [], "remark": "improve performance by ..."}
         self.assertIs(main._check_overpass_remark(data), data)
 
-    def test_remark_falls_back_to_mirror_then_errors(self):
-        """Primaire ET miroir renvoient un remark d'erreur -> overpass_query lève (pas de vide)."""
+    def test_remark_without_mirror_raises_not_empty_sector(self):
+        """Sans miroir configuré, un remark d'erreur du primaire -> overpass_query lève
+        (PAS un secteur vide), et de bout en bout la variante {error} reste conforme."""
         timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'recurse'"}
-        main.http_get_json = lambda url, params=None, timeout=20: timed_out
+        main.http_get_json = lambda url, params=None, timeout=20, **kw: timed_out
         with self.assertRaises(SkillError):
             main.overpass_query("[out:json];", 25)
-        # de bout en bout : la variante {error} reste conforme, code != 0 (pas un secteur vide)
         main.resolve_location = lambda c, lat, lon, t: ALES
         out, code = self._run(["--commune", "Alès"])
         validate(out, SCHEMA)
         self.assertIn("error", out["accessibilite"])
         self.assertEqual(code, 1)
+
+    def test_mirror_used_only_when_configured(self):
+        """Avec FLOOD_OVERPASS_MIRROR, l'échec du primaire bascule sur le miroir ; les deux en
+        échec -> lève. Sans la variable, le miroir n'est jamais appelé."""
+        timed_out = {"elements": [], "remark": "runtime error: Query timed out"}
+        ok = {"elements": []}
+        calls = []
+
+        def fake(url, params=None, timeout=20, **kw):
+            calls.append(url)
+            return timed_out if main.OVERPASS_PRIMARY in url else ok
+
+        main.http_get_json = fake
+        os.environ["FLOOD_OVERPASS_MIRROR"] = "https://example.org/api/interpreter"
+        try:
+            data = main.overpass_query("[out:json];", 25)
+            self.assertEqual(data, ok)                       # repli miroir réussi
+            self.assertEqual(len(calls), 2)                  # primaire puis miroir
+        finally:
+            del os.environ["FLOOD_OVERPASS_MIRROR"]
+        calls.clear()
+        with self.assertRaises(SkillError):                  # sans env : pas de miroir
+            main.overpass_query("[out:json];", 25)
+        self.assertEqual(calls, [main.OVERPASS_PRIMARY])     # primaire seul
 
     # --- QL Overpass : verrouille les filtres (sinon ils ne vivent qu'en live) ----
     def test_query_excludes_pedestrian_and_scopes(self):
