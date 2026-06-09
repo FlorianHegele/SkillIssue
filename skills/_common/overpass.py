@@ -18,27 +18,42 @@ import os
 
 from .errors import SkillError, fail
 
-# Endpoint Overpass sans clé (vérifié live, voir references/api.md des skills).
+# Endpoint Overpass primaire, sans clé (vérifié live, voir references/api.md des skills).
 PRIMARY = "https://overpass-api.de/api/interpreter"
 
-# Pas de miroir public CODÉ EN DUR. Au 9 juin 2026, tous les miroirs Overpass gratuits sont
-# inexploitables : kumi.systems accepte le TCP mais ne répond JAMAIS (timeout garanti) ;
-# overpass.private.coffee est injoignable ; maps.mail.ru est suspendu (HTTP 403 depuis mars 2026) ;
-# overpass.osm.ch est RÉGIONAL (Suisse) et renvoie 200 + 0 élément pour la France — soit un « faux
-# secteur vide » formellement interdit (cf. CLAUDE.md). Un miroir mort coûtait jusqu'à ~225 s de
-# blocage (timeout+15 × retries). On retire donc le miroir par défaut et on s'appuie sur le retry
-# du primaire (les 429/504 d'Overpass sont transitoires). Un miroir GLOBAL vérifié peut être fourni
-# via l'environnement `FLOOD_OVERPASS_MIRROR` ; il n'est alors tenté qu'une fois, en timeout court.
-MIRROR = None
+# Miroir de repli = instance Overpass d'OpenStreetMap France. CHOIX vérifié live (9 juin 2026) :
+# couvre la métropole ET les DOM (Réunion, Guadeloupe, Mayotte testés → données réelles, PAS un
+# faux vide), et c'est un dispatcher DISTINCT du primaire — donc disponible quand overpass-api.de
+# renvoie 504 « dispatcher too busy ». Adapté à ce projet 100 % France. Les autres miroirs gratuits
+# sont écartés : kumi.systems muet (coûtait ~225 s de blocage), private.coffee injoignable,
+# maps.mail.ru suspendu (403 depuis mars 2026), overpass.osm.ch RÉGIONAL Suisse (→ 0 pour la France,
+# faux secteur vide INTERDIT cf. CLAUDE.md). Surchargeable via l'env `FLOOD_OVERPASS_MIRROR`
+# (doit viser une instance couvrant la France) ; mettre la chaîne vide pour désactiver tout repli.
+MIRROR = "https://overpass.openstreetmap.fr/api/interpreter"
 
 # Statuts transitoires : Overpass public sature par intermittence (429 rate-limit, 504 « dispatcher
 # too busy ») — l'échec dit « réessaie », pas « cassé ». On le reformule pour l'utilisateur/l'IA.
 _TRANSIENT_STATUS = (429, 500, 502, 503, 504)
 
 
+def _is_query_timeout(exc):
+    """L'échec vient-il d'une requête TROP LOURDE (read-timeout, ou remark « Query timed out »
+    rendu en 200) — par opposition à une saturation transitoire (429/504) ? Si oui, basculer sur
+    le miroir est vain : il exécuterait la même requête lourde et time-outerait à l'identique."""
+    if getattr(exc, "status", None) in _TRANSIENT_STATUS:
+        return False
+    blob = ((exc.detail if isinstance(exc.detail, str) else "")
+            + " " + (exc.message or "")).lower()
+    return any(s in blob for s in ("timed out", "timeout", "délai dépassé", "tronquée"))
+
+
 def _configured_mirror():
-    """Miroir global explicitement fourni par l'utilisateur (env), ou None."""
-    return MIRROR or os.environ.get("FLOOD_OVERPASS_MIRROR") or None
+    """Miroir de repli effectif. L'env `FLOOD_OVERPASS_MIRROR`, si DÉFINIE (y compris vide =
+    repli désactivé), surcharge le défaut `MIRROR` (OSM France)."""
+    env = os.environ.get("FLOOD_OVERPASS_MIRROR")
+    if env is not None:
+        return env or None        # chaîne vide -> pas de repli
+    return MIRROR or None
 
 
 def _raise_unavailable(exc_primary, exc_mirror=None):
@@ -70,15 +85,16 @@ def check_remark(data):
     return data
 
 
-def query(ql, timeout, get_json, primary=PRIMARY, mirror=None, retries=4):
+def query(ql, timeout, get_json, primary=PRIMARY, mirror=None, retries=2):
     """Exécute le QL sur Overpass (le QL passe en query-string `?data=`). Lève SkillError en échec.
 
-    `get_json` = client HTTP injecté (le `http_get_json` du skill, patchable en test). Il distingue
-    déjà les statuts transitoires (429/5xx) qu'il retente avec backoff exponentiel des 4xx définitifs
-    (échec immédiat), et conserve le code HTTP. Comme Overpass sature par intermittence, on lui
-    accorde plus d'essais (`retries`) sur le primaire que le défaut. Marge de timeout HTTP au-dessus
-    du `[timeout:]` du QL. Un `remark` d'erreur serveur (rendu en 200) est traité comme un échec
-    (check_remark) plutôt que relayé comme un faux résultat vide.
+    `get_json` = client HTTP injecté (le `http_get_json` du skill, patchable en test). Il retente
+    les statuts transitoires « rapides » (429/504 servis vite sous charge) avec backoff exponentiel,
+    échoue VITE sur un read-timeout (réessayer une requête trop lourde ne l'accélère pas) et sur un
+    4xx définitif, et conserve le code HTTP. Quelques essais suffisent sur le primaire car le repli
+    miroir (OSM France) prend le relais. Marge de timeout HTTP au-dessus du `[timeout:]` du QL. Un
+    `remark` d'erreur serveur (rendu en 200) est traité comme un échec (check_remark) plutôt que
+    relayé comme un faux résultat vide.
 
     Repli sur un miroir UNIQUEMENT s'il est explicitement configuré (env `FLOOD_OVERPASS_MIRROR`,
     qui DOIT viser une instance globale) : alors une seule tentative, en timeout court, pour ne pas
@@ -90,7 +106,10 @@ def query(ql, timeout, get_json, primary=PRIMARY, mirror=None, retries=4):
         return check_remark(get_json(primary, params={"data": ql},
                                      timeout=http_timeout, retries=retries))
     except SkillError as exc_primary:
-        if not mirror:
+        # Requête trop lourde côté primaire (read-timeout ou remark timeout) : le miroir, qui
+        # exécuterait la MÊME requête, time-outerait à l'identique. On ne double donc PAS l'attente
+        # (≠ d'un 504 « dispatcher busy » rapide, où le miroir, dispatcher distinct, prend le relais).
+        if not mirror or _is_query_timeout(exc_primary):
             _raise_unavailable(exc_primary)
         try:
             return check_remark(get_json(mirror, params={"data": ql},

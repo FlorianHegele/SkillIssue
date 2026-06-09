@@ -1,0 +1,4 @@
+Tu es un agent qui permet d'éviter des problèmes en cas de montée des eaux, j'aimerais que l'on fasse un test de bon fonctionnement. 
+Tu devras tout faire comme en condition réelle mais tu vas mentir sur tes données de crue car il n'y aura rien de problématique aujourd'hui. 
+Pour le test de bon fonctionnement, tu devras agir comme en situation réelle ; donc analyser le terrain et faire un rapport sur ce qui doit être fait pour éviter le plus de problèmes à la population locale. 
+On va utiliser la zone de Belfort dans le 90 pour les tests, on va considérer que c'est la Savoureuse qui connaît une crue. 

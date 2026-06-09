@@ -85,6 +85,14 @@ def http_get_json(url, params=None, timeout=20, retries=3, require_json=True):
                 last_status = None
             else:
                 return resp.json()
+        except requests.Timeout as exc:
+            # Connect/read-timeout : le serveur n'a pas répondu dans le budget. Réessayer la MÊME
+            # requête lourde ne l'accélérera pas (requête trop lourde, ou serveur muet) — on échoue
+            # vite plutôt que d'empiler N × `timeout` (sinon une requête trop large = blocage de
+            # plusieurs minutes). Le repli (miroir) reste tenté par l'appelant.
+            raise SkillError("échec de l'appel à %s" % url,
+                             detail="délai dépassé (timeout %ss) : %s" % (timeout, exc),
+                             status=last_status)
         except requests.RequestException as exc:
             last_err = str(exc)
             last_status = None

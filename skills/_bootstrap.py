@@ -57,6 +57,23 @@ def _venv_python(venv_dir):
     return os.path.join(venv_dir, "bin", "python")
 
 
+def _venv_has_deps(venv_python):
+    """Vrai si l'interpréteur du venv a DÉJÀ toutes les deps runtime (sonde, sans rien installer).
+
+    On lance le venv en sous-process pour interroger SON propre `find_spec` : c'est le seul moyen,
+    depuis le python système (où les deps manquent), de savoir si le venv est complet — donc s'il
+    faut le réparer (pip) ou simplement re-exécuter dedans. Évite une réinstallation à CHAQUE
+    lancement hors-venv (le cas courant : l'utilisateur appelle le skill avec `python3`)."""
+    probe = ("import importlib.util as u, sys; "
+             "sys.exit(0 if all(u.find_spec(m) for m in %r) else 1)" % (_RUNTIME_MODULES,))
+    try:
+        return subprocess.run([venv_python, "-c", probe],
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode == 0
+    except OSError:
+        return False
+
+
 def _log(msg):
     """Message de progression sur stderr (stdout est réservé au JSON du skill)."""
     sys.stderr.write("[flood-response/bootstrap] %s\n" % msg)
@@ -121,36 +138,41 @@ def ensure_runtime():
     if _deps_present():
         return
 
-    # Dépendances manquantes dans CET interpréteur. On a déjà tenté le maximum ? Erreur dure :
-    # le venv reste incomplet malgré (ré)installation — inutile de re-exécuter en boucle.
-    attempts = int(os.environ.get(_GUARD, "0") or "0")
-    if attempts >= _MAX_ATTEMPTS:
-        _log(
-            "dépendances runtime toujours absentes après %d tentative(s) de provisionnement."
-            % attempts
-        )
-        _log(
-            "Pistes : vérifier l'accès réseau (PyPI) et l'installation manuelle : "
-            "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
-        )
-        sys.exit(1)
-
     venv_python = _venv_python(_VENV_DIR)
-    try:
-        _provision_venv(venv_python)
-    except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
-        _log("ÉCHEC de la préparation de l'environnement : %s" % exc)
-        _log(
-            "Pistes : vérifier l'accès réseau (PyPI), que le module venv est installé "
-            "(paquet python3-venv sur Debian/Ubuntu), ou créer le venv à la main : "
-            "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
-        )
-        sys.exit(1)
+
+    # Le venv existe-t-il déjà ET est-il complet ? Alors on NE réinstalle PAS : on re-exécute
+    # directement dedans, sans pip ni message. C'est le chemin courant quand l'utilisateur relance
+    # le skill avec son `python3` système — auparavant, requirements.txt était réinstallé à chaque
+    # fois (lent + log à chaque exécution). On ne provisionne que si le venv manque ou est incomplet.
+    if not (os.path.exists(venv_python) and _venv_has_deps(venv_python)):
+        # On a déjà tenté le maximum ? Erreur dure : le venv reste incomplet malgré (ré)installation
+        # — inutile de re-exécuter en boucle.
+        attempts = int(os.environ.get(_GUARD, "0") or "0")
+        if attempts >= _MAX_ATTEMPTS:
+            _log(
+                "dépendances runtime toujours absentes après %d tentative(s) de provisionnement."
+                % attempts
+            )
+            _log(
+                "Pistes : vérifier l'accès réseau (PyPI) et l'installation manuelle : "
+                "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            )
+            sys.exit(1)
+        try:
+            _provision_venv(venv_python)
+        except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
+            _log("ÉCHEC de la préparation de l'environnement : %s" % exc)
+            _log(
+                "Pistes : vérifier l'accès réseau (PyPI), que le module venv est installé "
+                "(paquet python3-venv sur Debian/Ubuntu), ou créer le venv à la main : "
+                "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            )
+            sys.exit(1)
 
     # Re-exécute le même script avec l'interpréteur du venv (où les dépendances existent
-    # désormais), en incrémentant le compteur de tentatives.
+    # désormais). Incrémente un compteur (borne dure anti-boucle si le venv restait incomplet).
     env = dict(os.environ)
-    env[_GUARD] = str(attempts + 1)
+    env[_GUARD] = str(int(os.environ.get(_GUARD, "0") or "0") + 1)
     try:
         os.execve(venv_python, [venv_python] + sys.argv, env)
     except OSError as exc:  # pragma: no cover - cas dégénéré (venv corrompu)

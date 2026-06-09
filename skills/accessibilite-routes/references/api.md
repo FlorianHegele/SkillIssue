@@ -22,11 +22,19 @@ Détails vérifiés en live (5 juin 2026) sur `overpass-api.de`. Sans clé. OSM 
   valide** avec `{"elements": [], "remark": "runtime error: Query timed out…"}`. Le skill détecte
   ce `remark` d'erreur (`main._check_overpass_remark`) puis lève une erreur explicite — sinon une
   requête tronquée serait lue à tort comme « secteur sans aucun ouvrage ».
-- **Repli miroir** : aucun par défaut. Les miroirs gratuits sont morts (kumi.systems), injoignables
-  (private.coffee), suspendus (maps.mail.ru → 403) ou **régionaux** (overpass.osm.ch = Suisse, renvoie
-  0 pour la France = faux secteur vide INTERDIT). Un miroir **global vérifié** peut être fourni via
-  l'env `FLOOD_OVERPASS_MIRROR` : il est alors tenté une seule fois, en timeout court. On s'appuie
-  sinon sur le retry du primaire (les 504/429 d'Overpass sont transitoires).
+- **Repli miroir** : `https://overpass.openstreetmap.fr/api/interpreter` (instance OSM France).
+  Vérifié live : couvre **métropole + DOM** (Réunion/Guadeloupe/Mayotte → données réelles, pas un
+  faux vide), dispatcher **distinct** du primaire (donc dispo quand overpass-api.de renvoie 504). Le
+  primaire en échec bascule dessus, une seule fois, en timeout court. Surchargeable via l'env
+  `FLOOD_OVERPASS_MIRROR` (doit couvrir la France) ; valeur **vide** = repli désactivé. Miroirs
+  écartés : kumi.systems mort (coûtait ~225 s de blocage), private.coffee injoignable, maps.mail.ru
+  suspendu (403 depuis mars 2026), overpass.osm.ch RÉGIONAL Suisse (→ 0 pour la France = INTERDIT).
+- **Poids ∝ rayon (timeout serveur)** : les clés `ford`/`bridge`/`tunnel`/`layer` sont mal indexées
+  → le serveur parcourt toutes les voies du `around:`. En zone urbaine DENSE, un grand rayon dépasse
+  le `[timeout:]` côté serveur (remark « Query timed out in query »). Mesuré sur Belfort (requête
+  complète) : **1500 m → 1,2 s ✅** ; **2500/3000/5000 m → timeout** (~85 s puis remark). Le skill
+  détecte ce cas (`main._looks_like_query_timeout`) et renvoie une erreur ACTIONNABLE invitant à
+  réduire `--radius-m` ou à découper. En zone rurale, un grand rayon passe (peu de voies).
 - **Pièges** : éviter les noms accentués dans `area[...]` (→ 406) ; préférer **bbox `(s,o,n,e)`** ou
   **`(around:rayon_m,lat,lon)`**. `out count;` correct (pas `.x out count;`). Ne jamais scanner à
   l'échelle nationale sur clés non indexées (`ford`, `flood_prone` → timeout) : toujours scoper.

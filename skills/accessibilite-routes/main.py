@@ -174,10 +174,37 @@ def build_ouvrage(loc, el, kind):
     )
 
 
+# Statuts HTTP transitoires (saturation serveur) : un échec qui les porte n'est PAS un problème
+# de rayon — inutile alors de conseiller de réduire la zone (cf. _looks_like_query_timeout).
+_TRANSIENT_STATUS = (429, 500, 502, 503, 504)
+
+
+def _looks_like_query_timeout(exc):
+    """Vrai si l'échec Overpass ressemble à un TIMEOUT DE CALCUL serveur (requête trop lourde),
+    par opposition à une saturation transitoire (429/504) ou un autre échec. En zone dense, un
+    rayon trop grand fait dépasser le `[timeout:]` côté serveur (remark « Query timed out »)."""
+    if getattr(exc, "status", None) in _TRANSIENT_STATUS:
+        return False
+    blob = json.dumps(exc.detail, ensure_ascii=False).lower() if exc.detail is not None else ""
+    return "timed out" in blob or "timeout" in blob or "tronquée" in (exc.message or "").lower()
+
+
 # --- Adaptateur : accessibilité via Overpass ----------------------------------
 def collect_accessibilite(loc, args):
     ql = build_query(loc.lat, loc.lon, args.radius_m, args.timeout)
-    data = overpass_query(ql, args.timeout)
+    try:
+        data = overpass_query(ql, args.timeout)
+    except SkillError as exc:
+        # Timeout de calcul serveur (≠ saturation) : quasi toujours un rayon trop grand en zone
+        # dense. On remonte une erreur ACTIONNABLE (l'IA/l'utilisateur peut réduire et relancer)
+        # plutôt qu'un « Overpass indisponible » opaque. Mesuré : Belfort OK à 1500 m, timeout ≥ 2500 m.
+        if _looks_like_query_timeout(exc):
+            raise SkillError(
+                "Secteur probablement trop dense pour un rayon de %d m : la requête Overpass "
+                "dépasse le temps de calcul serveur. Réduire --radius-m (≈1500 m en zone urbaine "
+                "dense), ou cibler une sous-zone / lancer plusieurs requêtes ciblées."
+                % int(args.radius_m), detail=exc.detail)
+        raise
 
     counts = {"gué": 0, "tunnel": 0, "pont": 0, "passage_inférieur": 0, "zone_inondable": 0}
     retenus, seen = [], set()
@@ -248,7 +275,9 @@ def build_parser():
     parser.add_argument("--lon", type=float, help="Longitude décimale")
     parser.add_argument("--radius-m", dest="radius_m", type=int, default=DEFAULT_RADIUS_M,
                         help="Rayon de recherche en mètres (défaut %(default)s, max "
-                             + str(MAX_RADIUS_M) + ").")
+                             + str(MAX_RADIUS_M) + "). En zone urbaine DENSE, garder un rayon "
+                             "modéré (≈1500 m) : au-delà, la requête Overpass peut dépasser le "
+                             "temps de calcul serveur (clés ford/bridge/tunnel non indexées).")
     parser.add_argument("--limit", type=int, default=100,
                         help="Nombre max d'ouvrages listés, triés par distance (défaut "
                              "%(default)s). Le résumé compte tous les ouvrages trouvés.")

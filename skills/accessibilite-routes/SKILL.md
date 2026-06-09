@@ -54,6 +54,13 @@ python3 ${CLAUDE_SKILL_DIR}/main.py --lat 44.13 --lon 4.08 --radius-m 800 --limi
 Options : `--radius-m` mètres (défaut 1500, max 5000 — toujours scopé), `--limit` (défaut 100,
 borne la liste ; le résumé compte tous les ouvrages trouvés), `--timeout` s (défaut 25).
 
+> ⚠ **Rayon en zone urbaine dense.** Garder un rayon **modéré (≈1500 m)** en ville : les clés
+> `ford`/`bridge`/`tunnel`/`layer` sont mal indexées, donc plus le rayon est grand, plus Overpass
+> doit parcourir de voies. Au-delà de ~2000 m en secteur dense, la requête peut **dépasser le temps
+> de calcul serveur** (mesuré : Belfort OK à 1500 m, timeout à ≥ 2500 m) → le skill renvoie alors
+> une erreur explicite invitant à réduire `--radius-m` ou à découper en sous-zones. En zone rurale,
+> un rayon plus large passe sans souci.
+
 ## Sortie
 
 JSON sur stdout : `{ lieu, accessibilite, skill }`. Le bloc `skill` (métadonnée de version/mise à

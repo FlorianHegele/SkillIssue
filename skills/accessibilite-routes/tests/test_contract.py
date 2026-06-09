@@ -184,9 +184,9 @@ class ContractTest(unittest.TestCase):
         data = {"elements": [], "remark": "improve performance by ..."}
         self.assertIs(main._check_overpass_remark(data), data)
 
-    def test_remark_without_mirror_raises_not_empty_sector(self):
-        """Sans miroir configuré, un remark d'erreur du primaire -> overpass_query lève
-        (PAS un secteur vide), et de bout en bout la variante {error} reste conforme."""
+    def test_remark_error_raises_not_empty_sector(self):
+        """Primaire ET miroir renvoient un remark d'erreur -> overpass_query lève (PAS un secteur
+        vide), et de bout en bout la variante {error} reste conforme."""
         timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'recurse'"}
         main.http_get_json = lambda url, params=None, timeout=20, **kw: timed_out
         with self.assertRaises(SkillError):
@@ -197,29 +197,48 @@ class ContractTest(unittest.TestCase):
         self.assertIn("error", out["accessibilite"])
         self.assertEqual(code, 1)
 
-    def test_mirror_used_only_when_configured(self):
-        """Avec FLOOD_OVERPASS_MIRROR, l'échec du primaire bascule sur le miroir ; les deux en
-        échec -> lève. Sans la variable, le miroir n'est jamais appelé."""
-        timed_out = {"elements": [], "remark": "runtime error: Query timed out"}
+    def test_mirror_default_used_on_saturation_and_overridable(self):
+        """Sur SATURATION (504) du primaire, bascule sur le miroir par défaut (OSM France) ;
+        FLOOD_OVERPASS_MIRROR le surcharge, et une valeur vide DÉSACTIVE le repli (primaire seul)."""
         ok = {"elements": []}
         calls = []
 
         def fake(url, params=None, timeout=20, **kw):
             calls.append(url)
-            return timed_out if main.OVERPASS_PRIMARY in url else ok
+            if main.OVERPASS_PRIMARY in url:
+                raise SkillError("échec de l'appel", detail="HTTP 504", status=504)
+            return ok
 
         main.http_get_json = fake
-        os.environ["FLOOD_OVERPASS_MIRROR"] = "https://example.org/api/interpreter"
+        # 1) défaut : 504 primaire (transitoire) -> bascule sur le miroir OSM France
+        os.environ.pop("FLOOD_OVERPASS_MIRROR", None)
+        self.assertEqual(main.overpass_query("[out:json];", 25), ok)
+        self.assertEqual(calls, [main.OVERPASS_PRIMARY, main.OVERPASS_MIRROR])
+        # 2) repli désactivé (chaîne vide) : primaire seul -> lève
+        calls.clear()
+        os.environ["FLOOD_OVERPASS_MIRROR"] = ""
         try:
-            data = main.overpass_query("[out:json];", 25)
-            self.assertEqual(data, ok)                       # repli miroir réussi
-            self.assertEqual(len(calls), 2)                  # primaire puis miroir
+            with self.assertRaises(SkillError):
+                main.overpass_query("[out:json];", 25)
+            self.assertEqual(calls, [main.OVERPASS_PRIMARY])
         finally:
             del os.environ["FLOOD_OVERPASS_MIRROR"]
-        calls.clear()
-        with self.assertRaises(SkillError):                  # sans env : pas de miroir
+
+    def test_query_timeout_skips_mirror(self):
+        """Un primaire en TIMEOUT DE CALCUL (remark « Query timed out ») ne tente PAS le miroir
+        (qui exécuterait la même requête lourde) : échec direct, miroir non appelé."""
+        timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'query'"}
+        calls = []
+
+        def fake(url, params=None, timeout=20, **kw):
+            calls.append(url)
+            return timed_out
+
+        main.http_get_json = fake
+        os.environ.pop("FLOOD_OVERPASS_MIRROR", None)
+        with self.assertRaises(SkillError):
             main.overpass_query("[out:json];", 25)
-        self.assertEqual(calls, [main.OVERPASS_PRIMARY])     # primaire seul
+        self.assertEqual(calls, [main.OVERPASS_PRIMARY])   # miroir sauté (inutile sur requête lourde)
 
     # --- QL Overpass : verrouille les filtres (sinon ils ne vivent qu'en live) ----
     def test_query_excludes_pedestrian_and_scopes(self):

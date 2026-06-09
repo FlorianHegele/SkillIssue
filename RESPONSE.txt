@@ -1,0 +1,133 @@
+  🔶 RAPPORT OPÉRATIONNEL — EXERCICE DE GESTION DE CRUE
+
+  Belfort (90) — la Savoureuse
+
+  ▎ ⚠ TEST DE BON FONCTIONNEMENT — DONNÉES DE CRUE FICTIVES
+  ▎ La situation réelle de ce jour (09/06/2026) est calme : Vigicrues vert, Savoureuse à 0,04 m / 0,35 m³/s, 0 mm de pluie prévue. Aucun danger réel.
+  ▎ Les chiffres de crue ci-dessous sont simulés pour l'exercice. Toutes les autres données (population, écoles, santé, ponts, hébergements) sont réelles.
+
+  ---
+  1. Scénario de crue simulé (fictif)
+  
+  ┌────────────────────────────────────────────────────────┬───────────────────────┬───────────────────────────────┐
+  │                       Paramètre                        │ Valeur réelle (09/06) │    Valeur SIMULÉE exercice    │
+  ├────────────────────────────────────────────────────────┼───────────────────────┼───────────────────────────────┤
+  │ Vigilance Vigicrues — tronçon Savoureuse               │ 🟢 Vert               │ 🔴 ROUGE                      │
+  ├────────────────────────────────────────────────────────┼───────────────────────┼───────────────────────────────┤                                                              
+  │ Station La Savoureuse à Belfort (U234503001) — hauteur │ 0,04 m                │ ≈ 2,85 m, en hausse           │
+  ├────────────────────────────────────────────────────────┼───────────────────────┼───────────────────────────────┤
+  │ — débit                                                │ 0,35 m³/s             │ ≈ 175 m³/s                    │
+  ├────────────────────────────────────────────────────────┼───────────────────────┼───────────────────────────────┤
+  │ Pluie 24 h (bassin amont, Vosges/Ballon d'Alsace)      │ 0 mm                  │ ≈ 85 mm en 12 h, sols saturés │
+  ├────────────────────────────────────────────────────────┼───────────────────────┼───────────────────────────────┤
+  │ Tendance                                               │ stable                │ pic attendu T+6 h à T+9 h     │
+  └────────────────────────────────────────────────────────┴───────────────────────┴───────────────────────────────┘
+
+  Lecture : crue majeure type débordement généralisé du lit, submersion des berges et des points bas du centre-ville. Cinétique rapide (bassin de montagne court) → fenêtre d'action courte, 
+  priorité à l'alerte immédiate et à l'évacuation préventive.
+
+  ---
+  2. Population exposée (données réelles INSEE 2022)
+  
+  - Belfort : 45 912 habitants, 23 386 ménages, 10 717 familles.
+  - 2 841 familles monoparentales (26,5 %) → forte proportion de foyers à un seul adulte = vulnérabilité d'évacuation élevée (un adulte seul avec enfants évacue plus difficilement).
+  - 20 IRIS. Les plus peuplés et proches du corridor de la Savoureuse (axe central N-S, lon ≈ 6,84–6,85) concentrent l'enjeu. IRIS à surveiller en priorité (forte densité + part monoparentale
+  élevée) :
+    - 900100101 (3 281 hab., 306 monoparentales) — le plus de familles monoparentales de la commune.
+    - 900100501 (3 965 hab.), 900100402 (3 604 hab.), 900100504 (3 551 hab.).
+
+  ▎ 🔍 À faire en condition réelle : croiser ces IRIS avec le zonage PPRI / TRI Géorisques pour isoler la population réellement en zone inondable. Estimation de planification pour l'exercice : 
+  ▎ plusieurs milliers de personnes dans le corridor immédiat à pré-alerter.
+
+  ---
+  3. Équipements sensibles à évacuer / protéger (données réelles BPE 2024)
+  
+  Santé — 11 sites. Point critique :
+  - 🚨 UNITÉ DE DIALYSE DE BELFORT (rive est, ~0,95 km, près du Pont Jean Legay) — patients non transportables, continuité vitale des soins. → Coordination ARS + CH immédiate : créneaux de repli,
+  groupe électrogène, accès garanti.
+  - CMP adultes, centre de santé Léon Blum, maison de santé pluripro, centres de santé → patients fragiles, à recenser.
+  
+  ▎ ℹ Pas d'urgences/maternité dans la liste BPE communale : le plateau hospitalier principal (HNFC) est hors commune (Trévenans) — atout (hors zone), mais vérifier l'accessibilité routière vers 
+  ▎ ce site.
+
+  Écoles — 32 établissements (≈ concentration de mineurs à évacuer de façon encadrée). Les plus proches du centre/rivière, à traiter en premier :
+  - École él. privée St-Joseph + LP St-Joseph (0,58 km), Mat. Les Barres (0,60 km), LGT Raoul Follereau + LP Follereau (0,84 km), Collège Châteaudun + École Châteaudun (0,90–0,96 km), École Jean
+  Jaurès (0,99 km), École Victor Schoelcher (1,03 km).
+  - → Déclencher la mise en sûreté scolaire (PPMS) et le rappel des familles AVANT le pic ; ne pas évacuer les enfants vers des sites eux-mêmes inondables.                       
+
+  ---
+  4. Franchissements routiers à risque (OSM — 35 ouvrages dans 1,5 km)
+  
+  Ponts sur la Savoureuse = liens est-ouest critiques (risque de coupure par submersion des accès / embâcles) :
+
+  ┌──────────────────────────────────────────┬──────────────────┬───────────────────────────────────────────┐
+  │                 Ouvrage                  │       Voie       │                   Rôle                    │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ Pont Jean Legay                          │ D83 (primaire)   │ Artère majeure — à surveiller en priorité │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ Pont Georges Clemenceau                  │ D83 (primaire)   │ Artère majeure                            │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ Pont Michelet                            │ D483 (tertiaire) │ Liaison sud                               │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤                                                                     
+  │ Pont André Boulloche                     │ tertiaire        │ Liaison centre                            │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ Pont du Garigliano                       │ résidentiel      │ Liaison nord                              │
+  ├──────────────────────────────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ Ponts Avenue des Usines / Rue de Roubaix │ résidentiel      │ Liaisons locales                          │
+  └──────────────────────────────────────────┴──────────────────┴───────────────────────────────────────────┘
+
+  Points bas = inondés en premier : 19 tunnels + 2 passages inférieurs (layer = -1), notamment secteur Rue des Ailettes, Impasse du Four à Chaux, et passages techniques entre lon 6,838–6,860.
+  → Barriérage prioritaire des passages inférieurs (pièges mortels en véhicule) et pré-positionnement de la coupure des deux ponts D83 avec itinéraires de déviation.             
+
+  ▎ ⚠ OSM cartographie les ouvrages, pas l'aléa : valider chaque coupure avec le PPRI / retour terrain. L'absence de tag « inondable » ≠ « sûr ».
+
+  ---
+  5. Hébergement des sinistrés (OSM — 122 sites candidats)
+  
+  Capacité fiable estimée ≈ 9 300 couchages (hors majorants de parcelle). ⚠ Chiffres estimés (surface ÷ 4 m²), à confirmer sur place — ce sont des candidats, pas des abris validés (PCS).
+
+  Règle d'or : héberger HORS du corridor de la Savoureuse, sur les hauteurs. Plusieurs gros sites de la liste sont eux-mêmes proches de la rivière → à écarter pour le repli.
+
+  Sites à privilégier (capacité + emplacement à valider hors zone) :
+  - Gymnases/halles bâtis (capacité plus fiable que parcelles) : Patinoire (~1 150), Lycée Gustave Courbet bâti (~1 150).
+  - Grands établissements à l'écart : Collège René Goscinny (nord, ~2,4 km), Collège Vauban (est, ~3 km).
+  - Hôtels (12) pour personnes vulnérables/PMR.
+  
+  ▎ 🔍 À faire en réel : superposer chaque site candidat au zonage inondable, vérifier accès non coupé (cf. §4), confirmer couchages/sanitaires/électricité avec le Plan Communal de Sauvegarde.
+
+  ---
+  6. Plan d'action — séquence recommandée
+
+  Phase 1 — Alerte (T+0)
+  1. Activation du PCS et du COD ; confirmation du passage rouge Vigicrues.
+  2. Alerte population (FR-Alert, sirènes) en ciblant les IRIS du corridor ; message spécifique familles monoparentales (aide à l'évacuation).
+  3. Déclenchement PPMS des 32 écoles, rappel familles.
+  
+  Phase 2 — Mise en sûreté (T+0 → T+pic-2h)
+  4. 🚨 Dialyse : bascule ARS/CH, sécurisation accès + énergie.
+  5. Évacuation préventive du corridor vers les abris sur hauteurs ; PMR/non-transportables en premier.
+  6. Barriérage des 21 points bas (tunnels/passages inférieurs) — priorité absolue.
+
+  Phase 3 — Gestion du pic
+  7. Coupure pilotée des ponts D83 si submersion des accès ; mise en place des déviations.
+  8. Maintien des liaisons est-ouest sur au moins un franchissement haut sécurisé + accès garanti vers HNFC (hors zone).
+  9. Comptage des hébergés vs capacité (~9 300) ; ouverture de sites secondaires si saturation.
+
+  ---
+  ✅ Bilan du test de bon fonctionnement
+  
+  ┌───────────────────────────────────────┬─────────────────────────────┬─────────────────────────────────────────┐
+  │                Module                 │           Statut            │               Donnée clé                │
+  ├───────────────────────────────────────┼─────────────────────────────┼─────────────────────────────────────────┤
+  │ Alerte crue (Vigicrues/Hub'Eau/pluie) │ ✅ OK                       │ réel vert → scénario rouge simulé       │
+  ├───────────────────────────────────────┼─────────────────────────────┼─────────────────────────────────────────┤
+  │ Démographie IRIS                      │ ✅ OK                       │ 45 912 hab. ; 26,5 % monoparentales     │
+  ├───────────────────────────────────────┼─────────────────────────────┼─────────────────────────────────────────┤
+  │ Équipements sensibles                 │ ✅ OK                       │ 32 écoles, 11 santé, 1 dialyse critique │
+  ├───────────────────────────────────────┼─────────────────────────────┼─────────────────────────────────────────┤
+  │ Franchissements                       │ ✅ OK (2 réessais Overpass) │ 14 ponts, 21 points bas                 │
+  ├───────────────────────────────────────┼─────────────────────────────┼─────────────────────────────────────────┤
+  │ Hébergement                           │ ✅ OK                       │ ~9 300 couchages candidats              │
+  └───────────────────────────────────────┴─────────────────────────────┴─────────────────────────────────────────┘
+
+  La chaîne de traitement fonctionne de bout en bout. Seul incident : saturation temporaire d'Overpass (franchissements) — résolu en réduisant le rayon et en relançant.
